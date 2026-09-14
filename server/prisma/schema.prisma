@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  admin
+  empleado
+  caja
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  usuario   String   @unique
+  password  String
+  rol       Rol      @default(empleado)
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+}
+
+model Mesa {
+  id         Int      @id @default(autoincrement())
+  numero     Int      @unique
+  capacidad  Int      @default(4)
+  zona       String   @default("")
+  estado     String   @default("libre") // libre | ocupada | cuenta
+  mesero     String   @default("")
+  forma      String   @default("cuadrada") // cuadrada | circular | rectangular
+  posX       Int      @default(0)
+  posY       Int      @default(0)
+  ancho      Int      @default(90)
+  alto       Int      @default(90)
+  imagenUrl  String?
+
+  pedidos    Pedido[]
+  ventas     Venta[]
+}
+
+model Plato {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  categoria   String
+  precio      Float
+  descripcion String   @default("")
+  disponible  Boolean  @default(true)
+  stock       Int?     // null = ilimitado
+  imagenUrl   String?
+
+  pedidos     Pedido[]
+}
+
+model MenuDia {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String   @default("")
+  precio      Float
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+
+  pedidos     Pedido[]
+}
+
+model Pedido {
+  id          Int      @id @default(autoincrement())
+  mesaId      Int
+  mesa        Mesa     @relation(fields: [mesaId], references: [id])
+  menuId      Int?
+  plato       Plato?   @relation(fields: [menuId], references: [id])
+  menuDiaId   Int?
+  menuDia     MenuDia? @relation(fields: [menuDiaId], references: [id])
+  ventaId     Int?
+  venta       Venta?   @relation(fields: [ventaId], references: [id])
+  nombrePlato String
+  categoria   String   @default("")
+  precio      Float
+  cantidad    Int      @default(1)
+  notas       String   @default("")
+  estado      String   @default("pendiente") // pendiente | preparando | listo | cerrado
+  fecha       DateTime @default(now())
+
+  @@index([mesaId])
+}
+
+model Venta {
+  id         Int      @id @default(autoincrement())
+  mesaId     Int
+  mesa       Mesa     @relation(fields: [mesaId], references: [id])
+  total      Float
+  subtotal   Float    @default(0)
+  propina    Float    @default(0)
+  metodoPago String   @default("efectivo") // efectivo | tarjeta | transferencia
+  mesero     String   @default("")
+  fecha      DateTime @default(now())
+
+  pedidos    Pedido[]
+
+  @@index([fecha])
+}
+
+model Domicilio {
+  id          Int             @id @default(autoincrement())
+  nombre      String
+  telefono    String
+  direccion   String
+  subtotal    Float           @default(0)
+  costoEnvio  Float           @default(0)
+  total       Float           @default(0)
+  tipoEntrega String          @default("domicilio") // domicilio | recoger
+  estado      String          @default("pendiente") // pendiente | pendiente_confirmacion | despachado | cancelado
+  creadoPor   String          @default("") // nombre del empleado (vacío si vino del catálogo público)
+  fecha       DateTime        @default(now())
+  items       DomicilioItem[]
+
+  @@index([fecha])
+}
+
+model DomicilioItem {
+  id          Int       @id @default(autoincrement())
+  domicilioId Int
+  domicilio   Domicilio @relation(fields: [domicilioId], references: [id], onDelete: Cascade)
+  nombre      String
+  precio      Float
+  cantidad    Int
+  notas       String    @default("")
+}

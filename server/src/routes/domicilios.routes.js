@@ -1,0 +1,88 @@
+const { Router } = require('express')
+const { z } = require('zod')
+const { prisma } = require('../db')
+const { requireAuth, requireRole } = require('../auth/middleware')
+const { validateBody } = require('../validate')
+const { emitir } = require('../realtime')
+
+const router = Router()
+
+router.use(requireAuth, requireRole('admin', 'caja'))
+
+router.get('/', async (req, res) => {
+  const inicioHoy = new Date()
+  inicioHoy.setHours(0, 0, 0, 0)
+
+  if (req.query.cancelados === '1') {
+    const cancelados = await prisma.domicilio.findMany({
+      where: { estado: 'cancelado', fecha: { gte: inicioHoy } },
+      include: { items: true },
+      orderBy: { fecha: 'desc' },
+    })
+    return res.json(cancelados)
+  }
+
+  // Trae los activos de siempre + los despachados de hoy, para que el tablero Kanban
+  // muestre la columna "Despachado" con contenido en vez de vaciarse al instante.
+  const domicilios = await prisma.domicilio.findMany({
+    where: {
+      estado: { not: 'cancelado' },
+      OR: [
+        { estado: { not: 'despachado' } },
+        { estado: 'despachado', fecha: { gte: inicioHoy } },
+      ],
+    },
+    include: { items: true },
+    orderBy: { fecha: 'desc' },
+  })
+  res.json(domicilios)
+})
+
+const itemSchema = z.object({
+  nombre: z.string().min(1),
+  precio: z.number().nonnegative(),
+  cantidad: z.number().int().positive(),
+  notas: z.string().optional().default(''),
+})
+
+const addSchema = z.object({
+  nombre: z.string().min(1),
+  telefono: z.string().min(1),
+  direccion: z.string().min(1),
+  items: z.array(itemSchema).min(1),
+  tipoEntrega: z.enum(['domicilio', 'recoger']).optional().default('domicilio'),
+  costoEnvio: z.number().nonnegative().optional().default(0),
+})
+
+router.post('/', validateBody(addSchema), async (req, res) => {
+  const { nombre, telefono, direccion, items, tipoEntrega, costoEnvio } = req.body
+  const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
+  const envio = tipoEntrega === 'domicilio' ? costoEnvio : 0
+  const total = subtotal + envio
+
+  const domicilio = await prisma.domicilio.create({
+    data: {
+      nombre, telefono, direccion, subtotal, costoEnvio: envio, total, tipoEntrega,
+      creadoPor: req.user.nombre,
+      items: { create: items },
+    },
+    include: { items: true },
+  })
+  emitir('domicilios:cambio', { id: domicilio.id })
+  res.status(201).json(domicilio)
+})
+
+const updateSchema = z.object({
+  estado: z.enum(['pendiente', 'pendiente_confirmacion', 'despachado', 'cancelado']),
+})
+
+router.patch('/:id', validateBody(updateSchema), async (req, res) => {
+  const id = Number(req.params.id)
+  await prisma.domicilio.update({ where: { id }, data: { estado: req.body.estado } })
+  emitir('domicilios:cambio', { id })
+  res.json({ ok: true })
+})
+
+module.exports = router
+module.exports.itemSchema = itemSchema
+module.exports.addSchema = addSchema

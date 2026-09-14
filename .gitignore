@@ -8,9 +8,20 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+web/dist
+web/dist-ssr
 *.local
+
+# Variables de entorno (nunca se comitean secretos)
+.env
+.env.*
+!server/.env.example
+
+# Prisma
+server/prisma/migrations/dev.db
+
+# Respaldos automáticos de retención de datos
+server/backups/
 
 # Editor directories and files
 .vscode/*
