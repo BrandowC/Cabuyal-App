@@ -64,11 +64,12 @@ router.patch('/:id', requireRole('admin', 'empleado', 'caja'), validateBody(upda
 const cerrarSchema = z.object({
   metodo_pago: z.enum(['efectivo', 'tarjeta', 'transferencia']).optional().default('efectivo'),
   propina: z.number().nonnegative().optional().default(0),
+  notas_pago: z.string().optional().default(''),
 })
 
 router.post('/cerrar/:mesaId', requireRole('admin', 'caja'), validateBody(cerrarSchema), async (req, res) => {
   const mesaId = Number(req.params.mesaId)
-  const { metodo_pago, propina } = req.body
+  const { metodo_pago, propina, notas_pago } = req.body
 
   const resultado = await prisma.$transaction(async (tx) => {
     const mesaActual = await tx.mesa.findUnique({ where: { id: mesaId } })
@@ -78,7 +79,7 @@ router.post('/cerrar/:mesaId', requireRole('admin', 'caja'), validateBody(cerrar
 
     const venta = await tx.venta.create({
       data: {
-        mesaId, subtotal, propina, total, metodoPago: metodo_pago,
+        mesaId, subtotal, propina, total, metodoPago: metodo_pago, notasPago: notas_pago,
         mesero: mesaActual?.mesero || req.user.nombre,
       },
     })

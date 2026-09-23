@@ -29,8 +29,8 @@ const api = {
   getPedidosByMesa: (mesaId) => request(`/pedidos/mesa/${mesaId}`),
   addPedido: (data) => request('/pedidos', { method: 'POST', body: JSON.stringify(data) }),
   updatePedido: ({ id, estado }) => request(`/pedidos/${id}`, { method: 'PATCH', body: JSON.stringify({ estado }) }),
-  cerrarMesa: (mesaId, { metodo_pago, propina } = {}) =>
-    request(`/pedidos/cerrar/${mesaId}`, { method: 'POST', body: JSON.stringify({ metodo_pago, propina }) }),
+  cerrarMesa: (mesaId, { metodo_pago, propina, notas_pago } = {}) =>
+    request(`/pedidos/cerrar/${mesaId}`, { method: 'POST', body: JSON.stringify({ metodo_pago, propina, notas_pago }) }),
 
   // Menú
   getMenu: () => request('/menu'),

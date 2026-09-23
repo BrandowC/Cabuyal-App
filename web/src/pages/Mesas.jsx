@@ -11,6 +11,8 @@ const METODOS_PAGO = [
   { key: 'transferencia', label: 'Transferencia', icon: Landmark },
 ]
 
+const PROPINA_PORCENTAJES = [5, 8, 10]
+
 const ZONAS = [
   { nombre: 'CASA',         mesas: [1,2,3,4,5,6,7] },
   { nombre: 'SALÓN 1',      mesas: [8,9,10] },
@@ -57,6 +59,7 @@ export default function Mesas({ rol }) {
   const [pagoModal, setPagoModal]     = useState(false)
   const [metodoPago, setMetodoPago]   = useState('efectivo')
   const [propina, setPropina]         = useState('')
+  const [notasPago, setNotasPago]     = useState('')
   const [cerrando, setCerrando]       = useState(false)
   const [recibo, setRecibo]           = useState(null)
 
@@ -168,13 +171,15 @@ export default function Mesas({ rol }) {
 
   const abrirPago = () => {
     if (!puedeCerrarCuenta) return
-    setMetodoPago('efectivo'); setPropina(''); setPagoModal(true)
+    setMetodoPago('efectivo'); setPropina(''); setNotasPago(''); setPagoModal(true)
   }
 
   const confirmarPago = async () => {
     setCerrando(true)
     try {
-      const res = await api.cerrarMesa(mesaSel.id, { metodo_pago: metodoPago, propina: Number(propina) || 0 })
+      const res = await api.cerrarMesa(mesaSel.id, {
+        metodo_pago: metodoPago, propina: Number(propina) || 0, notas_pago: notasPago.trim(),
+      })
       const detalle = await api.getRecibo(res.ventaId)
       setPagoModal(false); setModal(false); setPedidos([])
       setRecibo(detalle)
@@ -202,21 +207,27 @@ export default function Mesas({ rol }) {
           100% { box-shadow: 0 0 0 0 rgba(176,58,46,0); }
         }
         .mesa-pulso { animation: mesa-pulso-anim 1.8s ease-out infinite; }
+        @media (max-width: 760px) {
+          .cabuyal-zonas-grid { grid-template-columns: 1fr !important; }
+          .cabuyal-mesa-modal-row { flex-direction: column !important; overflow-y: auto !important; }
+          .cabuyal-mesa-modal-right { width: 100% !important; }
+        }
       `}</style>
 
       {/* HEADER — stats */}
-      <div style={{ display:'grid', gridTemplateColumns: puedeCerrarCuenta ? 'auto 1fr 1fr 1fr 1fr' : 'auto 1fr 1fr 1fr',
-        gap:1, background:C.border, borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ display:'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px,1fr))',
+        gap:12, padding:'16px 16px 0' }}>
         {[
-          { label:'TOTAL MESAS', val:mesas.length,   color:C.goldDark },
-          { label:'DISPONIBLES', val:libres,          color:C.success },
-          { label:'OCUPADAS',    val:ocupadas,        color:C.terracotta },
-          ...(puedeCerrarCuenta ? [{ label:'VENTAS HOY',  val:`$${ventasHoy.toLocaleString('es-CO')}`, color:C.goldDark }] : []),
+          { label:'TOTAL MESAS', val:mesas.length,   color:C.goldDark, bg:C.goldBg },
+          { label:'DISPONIBLES', val:libres,          color:C.success,  bg:C.successBg },
+          { label:'OCUPADAS',    val:ocupadas,        color:C.terracotta, bg:C.terracottaBg },
+          ...(puedeCerrarCuenta ? [{ label:'VENTAS HOY',  val:`$${ventasHoy.toLocaleString('es-CO')}`, color:C.teal, bg:C.infoBg }] : []),
         ].map(s => (
-          <div key={s.label} style={{ background:C.surface, padding:'14px 16px', textAlign:'center',
-            borderBottom:`3px solid ${s.color}` }}>
-            <div style={{ fontSize:22, fontWeight:800, color:s.color }}>{s.val}</div>
-            <div style={{ fontSize:9, color:C.textMuted, letterSpacing:2, marginTop:3, textTransform:'uppercase' }}>
+          <div key={s.label} style={{ background:C.surface, padding:'14px 16px', borderRadius:12,
+            border:`1px solid ${C.border}`, boxShadow:'0 2px 8px rgba(11,36,54,0.05)' }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:s.color, marginBottom:8 }}/>
+            <div style={{ fontSize:21, fontWeight:800, color:C.text }}>{s.val}</div>
+            <div style={{ fontSize:10, color:C.textMuted, letterSpacing:1, marginTop:2, textTransform:'uppercase' }}>
               {s.label}
             </div>
           </div>
@@ -224,7 +235,7 @@ export default function Mesas({ rol }) {
       </div>
 
       {/* ZONAS */}
-      <div style={{ padding:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+      <div className="cabuyal-zonas-grid" style={{ padding:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
         {ZONAS.map(zona => (
           <div key={zona.nombre} style={{ border:`1px solid ${C.border}`, borderRadius:12,
             overflow:'hidden', background:C.surface, boxShadow:'0 3px 12px rgba(43,36,32,0.06)' }}>
@@ -288,8 +299,8 @@ export default function Mesas({ rol }) {
         <div style={{ position:'fixed', inset:0, background:'rgba(35,29,24,0.6)',
           display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}>
           <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16,
-            width:'100%', maxWidth:920, margin:16, overflow:'hidden', display:'flex',
-            flexDirection:'column', maxHeight:'92vh', boxShadow:'0 24px 60px rgba(0,0,0,0.28)' }}>
+            width:'100%', maxWidth:1180, margin:16, overflow:'hidden', display:'flex',
+            flexDirection:'column', maxHeight:'94vh', boxShadow:'0 24px 60px rgba(0,0,0,0.28)' }}>
 
             {/* Header modal */}
             <div style={{ background:C.header, borderBottom:`3px solid ${C.gold}`,
@@ -322,11 +333,11 @@ export default function Mesas({ rol }) {
               </button>
             </div>
 
-            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+            <div className="cabuyal-mesa-modal-row" style={{ display:'flex', flex:1, overflow:'hidden' }}>
 
               {/* IZQUIERDA */}
-              <div style={{ flex:1, padding:20, display:'flex', flexDirection:'column',
-                gap:16, overflowY:'auto', borderRight:`1px solid ${C.border}` }}>
+              <div style={{ flex:1, minWidth:0, padding:26, display:'flex', flexDirection:'column',
+                gap:20, overflowY:'auto', borderRight:`1px solid ${C.border}` }}>
 
                 {/* Buscador */}
                 <div>
@@ -375,7 +386,7 @@ export default function Mesas({ rol }) {
                       {mostrarDrop && !itemSel && (
                         <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0,
                           background:C.surface, border:`1px solid ${C.border}`, borderRadius:10,
-                          zIndex:100, overflow:'hidden', maxHeight:280, overflowY:'auto',
+                          zIndex:100, overflow:'hidden', maxHeight:340, overflowY:'auto',
                           boxShadow:'0 8px 30px rgba(0,0,0,0.15)' }}>
                           {resultados.map(r => (
                             <button key={r.id}
@@ -387,17 +398,18 @@ export default function Mesas({ rol }) {
                                 setCantidad(1)
                               }}
                               style={{ width:'100%', background:'transparent', border:'none',
-                                borderBottom:`1px solid ${C.border}`, padding:'11px 16px',
-                                display:'flex', justifyContent:'space-between',
-                                alignItems:'center', cursor:'pointer', textAlign:'left',
+                                borderBottom:`1px solid ${C.border}`, padding:'10px 14px',
+                                display:'flex', alignItems:'center', gap:12, cursor:'pointer', textAlign:'left',
                                 transition:'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background=C.bgAlt}
                               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                              <div>
-                                <div style={{ color:C.text, fontSize:13 }}>{r.nombre}</div>
+                              <div style={{ width:44, height:44, borderRadius:8, flexShrink:0,
+                                background: r.imagenUrl ? `center/cover no-repeat url(${r.imagenUrl})` : C.goldBg }} />
+                              <div style={{ flex:1 }}>
+                                <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{r.nombre}</div>
                                 <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>{r.categoria}</div>
                               </div>
-                              <div style={{ color:C.goldDark, fontWeight:800, fontSize:13, marginLeft:12 }}>
+                              <div style={{ color:C.goldDark, fontWeight:800, fontSize:13, marginLeft:12, whiteSpace:'nowrap' }}>
                                 ${r.precio.toLocaleString('es-CO')}
                               </div>
                             </button>
@@ -438,6 +450,8 @@ export default function Mesas({ rol }) {
                     <div style={{ marginTop:10, background:C.goldBg, border:`1px solid ${C.gold}`,
                       borderRadius:10, padding:'12px 16px', display:'flex', flexDirection:'column', gap:10 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                        <div style={{ width:48, height:48, borderRadius:9, flexShrink:0,
+                          background: itemSel.imagenUrl ? `center/cover no-repeat url(${itemSel.imagenUrl})` : `linear-gradient(145deg, ${C.gold}, ${C.goldDark})` }} />
                         <div style={{ flex:1 }}>
                           <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{itemSel.nombre}</div>
                           <div style={{ color:C.goldDark, fontSize:12, marginTop:2 }}>
@@ -490,7 +504,9 @@ export default function Mesas({ rol }) {
                   {pedidos.length === 0
                     ? <div style={{ color:C.textFaint, textAlign:'center', padding:'40px 0',
                         fontSize:13, letterSpacing:1 }}>SIN PEDIDOS AÚN</div>
-                    : pedidos.map(p => (
+                    : pedidos.map(p => {
+                      const fotoPlato = menuCompleto.find(m => m.id === p.menuId)?.imagenUrl
+                      return (
                       <div key={p.id} style={{ marginBottom:8 }}>
                         {editandoId === p.id ? (
                           <div style={{ background:C.goldBg, border:`2px solid ${C.gold}`,
@@ -550,6 +566,8 @@ export default function Mesas({ rol }) {
                             background:C.surfaceAlt, transition:'border-color 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.borderColor=C.gold}
                             onMouseLeave={e => e.currentTarget.style.borderColor=C.border}>
+                            <div style={{ width:38, height:38, borderRadius:7, flexShrink:0,
+                              background: fotoPlato ? `center/cover no-repeat url(${fotoPlato})` : C.goldBg }} />
                             <div style={{ flex:1 }}>
                               <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{p.nombrePlato}</div>
                               <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
@@ -577,14 +595,15 @@ export default function Mesas({ rol }) {
                           </div>
                         )}
                       </div>
-                    ))
+                      )
+                    })
                   }
                 </div>
               </div>
 
               {/* DERECHA */}
-              <div style={{ width:250, padding:20, display:'flex',
-                flexDirection:'column', gap:12, background:C.surfaceAlt }}>
+              <div className="cabuyal-mesa-modal-right" style={{ width:280, padding:24, display:'flex',
+                flexDirection:'column', gap:14, background:C.surfaceAlt, flexShrink:0 }}>
                 <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
                   letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
 
@@ -688,10 +707,42 @@ export default function Mesas({ rol }) {
                 <div style={{ color:C.textMuted, fontSize:11, fontWeight:800, letterSpacing:1, marginBottom:8 }}>
                   PROPINA (VOLUNTARIA)
                 </div>
+                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+                  {PROPINA_PORCENTAJES.map(pct => {
+                    const valorPct = Math.round(total * pct / 100)
+                    const activo = Number(propina) === valorPct && propina !== ''
+                    return (
+                      <button key={pct} onClick={() => setPropina(String(valorPct))}
+                        style={{ flex:1, padding:'8px 0', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:800,
+                          background: activo ? C.goldBg : C.bgAlt, color: activo ? C.goldDark : C.textMuted,
+                          border:`1.5px solid ${activo ? C.gold : C.border}` }}>
+                        {pct}%
+                      </button>
+                    )
+                  })}
+                  <button onClick={() => setPropina('0')}
+                    style={{ flex:1, padding:'8px 0', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:800,
+                      background: propina === '0' ? C.goldBg : C.bgAlt, color: propina === '0' ? C.goldDark : C.textMuted,
+                      border:`1.5px solid ${propina === '0' ? C.gold : C.border}` }}>
+                    Sin propina
+                  </button>
+                </div>
                 <input type="number" value={propina} onChange={e => setPropina(e.target.value)}
-                  placeholder="$0"
+                  placeholder="$0 (o escribe un valor personalizado)"
                   style={{ width:'100%', background:C.bgAlt, border:`1px solid ${C.border}`, borderRadius:8,
                     color:C.text, fontSize:14, padding:'10px 12px', outline:'none', boxSizing:'border-box' }}/>
+              </div>
+
+              <div>
+                <div style={{ color:C.textMuted, fontSize:11, fontWeight:800, letterSpacing:1, marginBottom:8, display:'flex',
+                  alignItems:'center', gap:6 }}>
+                  <StickyNote size={12}/> NOTAS DE PAGO (SI LO DIVIDEN)
+                </div>
+                <textarea value={notasPago} onChange={e => setNotasPago(e.target.value)} rows={2}
+                  placeholder="Ej: $20.000 Nequi + $20.000 efectivo"
+                  style={{ width:'100%', background:C.bgAlt, border:`1px solid ${C.border}`, borderRadius:8,
+                    color:C.text, fontSize:13, padding:'10px 12px', outline:'none', boxSizing:'border-box',
+                    fontFamily:'inherit', resize:'vertical' }}/>
               </div>
 
               <div style={{ background:C.header, borderRadius:10, padding:14 }}>

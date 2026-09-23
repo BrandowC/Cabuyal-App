@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FileSpreadsheet, TrendingUp, Calendar, Clock, RefreshCw, Download, Receipt } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FileSpreadsheet, TrendingUp, Calendar, Clock, RefreshCw, Download, Receipt, Activity } from 'lucide-react'
 import api from '../lib/api'
 import { C } from '../theme'
 import Recibo from '../components/Recibo'
@@ -28,42 +28,6 @@ function StatCard({ icon, iconBg, iconColor, label, val, extra }) {
   )
 }
 
-function GraficoBarras({ datos }) {
-  if (datos.length === 0) {
-    return (
-      <div style={{ height:180, display:'flex', alignItems:'center', justifyContent:'center', color:C.textFaint, fontSize:13 }}>
-        Sin datos para graficar en este período
-      </div>
-    )
-  }
-  const max = Math.max(...datos.map(d => d.total), 1)
-  const W = 640, H = 180, PAD = 24
-  const CELDA_MAX = 76
-  const celda = Math.min(CELDA_MAX, (W - PAD * 2) / datos.length)
-  const anchoUsado = celda * datos.length
-  const offsetX = PAD + Math.max(0, (W - PAD * 2 - anchoUsado) / 2)
-  const barW = celda * 0.55
-  return (
-    <svg viewBox={`0 0 ${W} ${H + 26}`} style={{ width:'100%', height:'auto', display:'block' }}>
-      {[0.25, 0.5, 0.75, 1].map((f) => (
-        <line key={f} x1={PAD} x2={W - PAD} y1={H - H * f} y2={H - H * f} stroke={C.border} strokeWidth={1} />
-      ))}
-      {datos.map((d, i) => {
-        const h = Math.max(3, (d.total / max) * (H - 8))
-        const x = offsetX + i * celda + (celda - barW) / 2
-        return (
-          <g key={d.fecha}>
-            <rect x={x} y={H - h} width={barW} height={h} rx={5} fill={C.gold} />
-            <text x={x + barW / 2} y={H + 16} textAnchor="middle" fontSize="9" fill={C.textMuted}>
-              {d.etiqueta}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 export default function Ventas() {
   const [ventas, setVentas]   = useState([])
   const [stats, setStats]     = useState({ hoy_cierres:0, hoy_total:0, semana:0, mes:0 })
@@ -84,7 +48,7 @@ export default function Ventas() {
     setCargando(true)
     const [v, s] = await Promise.all([
       filtro === 'rango' ? api.getVentas('', { desde, hasta }) : api.getVentas(filtro),
-      api.getVentasStats()
+      api.getVentasStats(),
     ])
     setVentas(v)
     setStats(s)
@@ -94,20 +58,6 @@ export default function Ventas() {
   useEffect(() => { cargar() }, [filtro, desde, hasta])
 
   const totalFiltro = ventas.reduce((s, v) => s + v.total, 0)
-
-  const datosGrafico = useMemo(() => {
-    const porDia = new Map()
-    ventas.forEach((v) => {
-      const key = new Date(v.fecha).toISOString().slice(0, 10)
-      porDia.set(key, (porDia.get(key) || 0) + v.total)
-    })
-    return [...porDia.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([fecha, total]) => ({
-        fecha, total,
-        etiqueta: new Date(fecha).toLocaleDateString('es-CO', { day:'2-digit', month:'2-digit' }),
-      }))
-  }, [ventas])
 
   const formatFecha = (f) => {
     const d = new Date(f)
@@ -135,9 +85,16 @@ export default function Ventas() {
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text,
       fontFamily:'Segoe UI, sans-serif' }}>
+      <style>{`
+        @media (max-width: 600px) {
+          .cabuyal-ventas-header { padding-left:14px !important; padding-right:14px !important; }
+          .cabuyal-ventas-stats { padding-left:14px !important; padding-right:14px !important; }
+          .cabuyal-ventas-actividad { margin-left:14px !important; margin-right:14px !important; max-width:none !important; }
+        }
+      `}</style>
 
       {/* HEADER */}
-      <div style={{ padding:'20px 24px 4px', display:'flex', justifyContent:'space-between',
+      <div className="cabuyal-ventas-header" style={{ padding:'20px 24px 4px', display:'flex', justifyContent:'space-between',
         alignItems:'center', flexWrap:'wrap', gap:10 }}>
         <div>
           <div style={{ color:C.text, fontSize:22, fontWeight:800 }}>Ventas</div>
@@ -173,7 +130,7 @@ export default function Ventas() {
       )}
 
       {/* STATS */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:14, padding:'20px 24px 0' }}>
+      <div className="cabuyal-ventas-stats" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:14, padding:'20px 24px 0' }}>
         <StatCard icon={<Calendar size={18}/>} iconBg={C.goldBg} iconColor={C.goldDark}
           label="Cierres hoy" val={stats.hoy_cierres} />
         <StatCard icon={<TrendingUp size={18}/>} iconBg={C.successBg} iconColor={C.success}
@@ -184,14 +141,36 @@ export default function Ventas() {
           label="Este mes" val={`$${Number(stats.mes).toLocaleString('es-CO')}`} />
       </div>
 
-      {/* GRÁFICO */}
-      <div style={{ margin:'20px 24px 0', background:C.surface, borderRadius:14, border:`1px solid ${C.border}`,
-        padding:'18px 20px', boxShadow:'0 2px 8px rgba(43,36,32,0.05)' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-          <div style={{ fontWeight:800, fontSize:14 }}>Ventas por día</div>
-          <div style={{ color:C.goldDark, fontWeight:800, fontSize:16 }}>${totalFiltro.toLocaleString('es-CO')}</div>
+      {/* ACTIVIDAD RECIENTE */}
+      <div className="cabuyal-ventas-actividad" style={{ margin:'20px 24px 0', maxWidth:420 }}>
+        <div style={{ background:C.surface, borderRadius:14, border:`1px solid ${C.border}`,
+          padding:'18px 20px', boxShadow:'0 2px 8px rgba(11,36,54,0.05)', display:'flex', flexDirection:'column' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:800, fontSize:14, marginBottom:12 }}>
+            <Activity size={15} color={C.teal}/> Actividad reciente
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:10, overflowY:'auto', maxHeight:220 }}>
+            {ventas.slice(0, 6).map((v) => (
+              <div key={v.id} style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:30, height:30, borderRadius:9, background:C.successBg, color:C.success,
+                  display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <TrendingUp size={14}/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    Mesa {v.mesa} — {v.mesero || 'Sin asignar'}
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>{formatHora(v.fecha)}</div>
+                </div>
+                <div style={{ color:C.goldDark, fontWeight:800, fontSize:12, whiteSpace:'nowrap' }}>
+                  ${Number(v.total).toLocaleString('es-CO')}
+                </div>
+              </div>
+            ))}
+            {ventas.length === 0 && (
+              <div style={{ color:C.textFaint, fontSize:12, textAlign:'center', padding:'20px 0' }}>Sin actividad aún</div>
+            )}
+          </div>
         </div>
-        <GraficoBarras datos={datosGrafico} />
       </div>
 
       <div style={{ padding:20 }}>
@@ -232,8 +211,8 @@ export default function Ventas() {
 
         {/* Tabla */}
         <div style={{ background:C.surface, borderRadius:10,
-          overflow:'hidden', border:`1px solid ${C.border}` }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+          overflowX:'auto', border:`1px solid ${C.border}` }}>
+          <table style={{ width:'100%', minWidth:640, borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr style={{ background:C.bgAlt, borderBottom:`1px solid ${C.border}` }}>
                 {['#', 'MESA', 'ATENDIÓ', 'FECHA', 'HORA', 'TOTAL', ''].map(h => (

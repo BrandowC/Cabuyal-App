@@ -71,12 +71,12 @@ export default function Menu() {
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text, fontFamily:'Segoe UI,sans-serif', padding:24 }}>
 
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
           <div style={{ color:C.goldDark, fontSize:20, fontWeight:800, letterSpacing:2 }}>MENÚ</div>
           <div style={{ color:C.textMuted, fontSize:12 }}>{platos.length} platos registrados</div>
         </div>
-        <div style={{ display:'flex', gap:8 }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button onClick={exportarStock} disabled={exportando}
             style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:'10px 16px',
               color:C.textMuted, fontWeight:700, fontSize:12, cursor: exportando ? 'not-allowed' : 'pointer',
@@ -109,8 +109,8 @@ export default function Menu() {
       </div>
 
       {/* Tabla */}
-      <div style={{ background:C.surface, borderRadius:10, overflow:'hidden', border:`1px solid ${C.border}` }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+      <div style={{ background:C.surface, borderRadius:10, overflowX:'auto', border:`1px solid ${C.border}` }}>
+        <table style={{ width:'100%', minWidth:600, borderCollapse:'collapse', fontSize:13 }}>
           <thead>
             <tr style={{ background:C.header, borderBottom:`1px solid ${C.gold}55` }}>
               {['Plato','Categoría','Precio','Stock','Estado','Acciones'].map(h => (

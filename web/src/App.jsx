@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutGrid, UtensilsCrossed, BarChart2, Bike, LogOut, LayoutTemplate, Users, CalendarDays } from 'lucide-react'
+import { LayoutGrid, UtensilsCrossed, BarChart2, Bike, LogOut, Users, CalendarDays, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
 import Mesas from './pages/Mesas'
 import Menu from './pages/Menu'
 import MenuDia from './pages/MenuDia'
@@ -7,7 +8,6 @@ import Ventas from './pages/Ventas'
 import Domicilios from './pages/Domicilios'
 import Login from './pages/Login'
 import Catalogo from './pages/Catalogo'
-import AdminMesas from './pages/AdminMesas'
 import Usuarios from './pages/Usuarios'
 import ProtectedRoute from './auth/ProtectedRoute'
 import { useAuth } from './auth/AuthContext'
@@ -20,7 +20,6 @@ const NAV = [
   { id: 'menu',         label: 'Menú',         icon: UtensilsCrossed, roles: ['admin'] },
   { id: 'menu-dia',     label: 'Menú del día', icon: CalendarDays,    roles: ['admin', 'caja'] },
   { id: 'ventas',       label: 'Ventas',       icon: BarChart2,       roles: ['admin', 'caja'] },
-  { id: 'editor-mesas', label: 'Editor mesas', icon: LayoutTemplate,  roles: ['admin'] },
   { id: 'usuarios',     label: 'Usuarios',     icon: Users,           roles: ['admin'] },
 ]
 
@@ -42,11 +41,12 @@ function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [menuAbierto, setMenuAbierto] = useState(false)
 
   const nav = NAV.filter((n) => n.roles.includes(user.rol))
   const pagina = location.pathname.replace('/', '') || nav[0]?.id || 'mesas'
 
-  const irA = (id) => navigate(`/${id}`)
+  const irA = (id) => { navigate(`/${id}`); setMenuAbierto(false) }
 
   const cerrarSesion = async () => {
     if (!confirm('¿Desea cerrar sesión?')) return
@@ -55,19 +55,67 @@ function AppShell() {
   }
 
   return (
-    <div style={{ display:'flex', height:'100vh', width:'100vw', overflow:'hidden',
-      fontFamily:"'Segoe UI', sans-serif" }}>
+    <div className="cabuyal-admin-shell" style={{ fontFamily:"'Segoe UI', sans-serif" }}>
+      <style>{`
+        .cabuyal-admin-shell { display:flex; height:100vh; width:100vw; overflow:hidden; }
+        .cabuyal-admin-topbar { display:none; }
+        .cabuyal-admin-overlay { display:none; }
+        .cabuyal-admin-sidebar { width:220px; flex-shrink:0; position:relative; }
+        @media (max-width: 860px) {
+          .cabuyal-admin-shell { flex-direction:column; height:100vh; width:100vw; }
+          .cabuyal-admin-topbar { display:flex; }
+          .cabuyal-admin-sidebar {
+            position:fixed; top:0; left:0; bottom:0; z-index:100; width:250px;
+            transform:translateX(-100%); transition:transform .25s ease;
+            box-shadow:8px 0 28px rgba(0,0,0,0.4);
+          }
+          .cabuyal-admin-sidebar.abierto { transform:translateX(0); }
+          .cabuyal-admin-sidebar-close { display:flex !important; }
+          .cabuyal-admin-overlay.abierto {
+            display:block; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:90;
+          }
+          .cabuyal-admin-main { width:100%; }
+        }
+      `}</style>
+
+      {/* BARRA SUPERIOR MÓVIL */}
+      <div className="cabuyal-admin-topbar" style={{ alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', background: C.header, borderBottom: `1px solid ${C.gold}44`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => setMenuAbierto(true)} aria-label="Abrir menú"
+            style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${C.gold}44`,
+              background: 'transparent', color: C.gold, cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center' }}>
+            <MenuIcon size={18} />
+          </button>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+            border: `1.5px solid ${C.gold}88`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={logo} alt="El Cabuyal" style={{ width: '180%', height: '180%', objectFit: 'cover' }} />
+          </div>
+          <span style={{ color: C.gold, fontWeight: 700, fontSize: 13, letterSpacing: 2 }}>EL CABUYAL</span>
+        </div>
+      </div>
+
+      {/* OVERLAY (cierra el menú móvil al tocar fuera) */}
+      <div className={`cabuyal-admin-overlay${menuAbierto ? ' abierto' : ''}`} onClick={() => setMenuAbierto(false)} />
 
       {/* SIDEBAR */}
-      <aside style={{
-        width: 220,
+      <aside className={`cabuyal-admin-sidebar${menuAbierto ? ' abierto' : ''}`} style={{
         display: 'flex',
         flexDirection: 'column',
         background: C.header,
         borderRight: `1px solid ${C.gold}44`,
-        position: 'relative',
         overflow: 'hidden',
       }}>
+
+        <button onClick={() => setMenuAbierto(false)} aria-label="Cerrar menú"
+          className="cabuyal-admin-sidebar-close"
+          style={{ display: 'none', position: 'absolute', top: 10, right: 10, zIndex: 5,
+            width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.gold}44`,
+            background: 'rgba(0,0,0,0.3)', color: C.gold, cursor: 'pointer',
+            alignItems: 'center', justifyContent: 'center' }}>
+          <CloseIcon size={16} />
+        </button>
 
         <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}, transparent)` }}/>
 
@@ -86,12 +134,12 @@ function AppShell() {
           }}/>
 
           <div style={{
-            width: 110, height: 110,
+            width: 138, height: 138,
             borderRadius: '38% 62% 55% 45% / 45% 45% 55% 55%',
             border: `1.5px solid ${C.gold}88`,
             padding: 4,
             marginBottom: 14,
-            boxShadow: `0 0 24px ${C.gold}22, inset 0 0 12px ${C.gold}11`,
+            boxShadow: `0 0 28px ${C.gold}22, inset 0 0 12px ${C.gold}11`,
             background: `linear-gradient(145deg, ${C.header}, ${C.headerAlt})`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             position: 'relative',
@@ -102,13 +150,13 @@ function AppShell() {
               border: `0.5px solid ${C.gold}33`,
             }}/>
             <div style={{
-              width: '92%', height: '92%', borderRadius: '50%', overflow: 'hidden',
+              width: '94%', height: '94%', borderRadius: '50%', overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <img
                 src={logo}
                 alt="El Cabuyal"
-                style={{ width: '175%', height: '175%', objectFit: 'cover' }}
+                style={{ width: '180%', height: '180%', objectFit: 'cover' }}
               />
             </div>
           </div>
@@ -212,7 +260,7 @@ function AppShell() {
       </aside>
 
       {/* CONTENIDO */}
-      <main style={{ flex: 1, overflow: 'auto', background: C.bg }}>
+      <main className="cabuyal-admin-main" style={{ flex: 1, overflow: 'auto', background: C.bg, minWidth: 0 }}>
         <Routes>
           <Route index element={<Navigate to={nav[0]?.id || 'mesas'} replace />} />
           <Route path="mesas" element={<Mesas rol={user.rol} />} />
@@ -227,9 +275,6 @@ function AppShell() {
           } />
           <Route path="ventas" element={
             <ProtectedRoute roles={['admin', 'caja']}><Ventas /></ProtectedRoute>
-          } />
-          <Route path="editor-mesas" element={
-            <ProtectedRoute roles={['admin']}><AdminMesas /></ProtectedRoute>
           } />
           <Route path="usuarios" element={
             <ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>

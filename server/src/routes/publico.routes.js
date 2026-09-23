@@ -25,12 +25,12 @@ const domicilioLimiter = rateLimit({
 })
 
 router.post('/domicilios', domicilioLimiter, validateBody(addSchema), async (req, res) => {
-  const { nombre, telefono, direccion, items } = req.body
+  const { nombre, telefono, direccion, referencia, items, metodoPago } = req.body
   const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
 
   const domicilio = await prisma.domicilio.create({
     data: {
-      nombre, telefono, direccion, items: { create: items },
+      nombre, telefono, direccion, referencia, items: { create: items }, metodoPago,
       subtotal, total: subtotal, tipoEntrega: 'domicilio',
       estado: 'pendiente_confirmacion',
     },

@@ -38,7 +38,7 @@ export default function MenuDia() {
 
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text, fontFamily:'Segoe UI,sans-serif', padding:24 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, flexWrap:'wrap', gap:12 }}>
         <div>
           <div style={{ color:C.goldDark, fontSize:20, fontWeight:800, letterSpacing:2, display:'flex', alignItems:'center', gap:8 }}>
             <CalendarDays size={20}/> MENÚ DEL DÍA

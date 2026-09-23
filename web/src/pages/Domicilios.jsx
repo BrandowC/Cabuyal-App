@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react'
-import { X, Search, Plus, Minus, Phone, MapPin, User, CheckCircle, XCircle, Bike, Globe, Check, Store, Truck, StickyNote, History } from 'lucide-react'
+import { X, Search, Plus, Minus, Phone, MapPin, User, CheckCircle, XCircle, Bike, Globe, Check, Store, Truck, StickyNote, History, Receipt, ChevronDown, ChevronUp, Banknote, CreditCard, Landmark, Home } from 'lucide-react'
 import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
+import ReciboDomicilio from '../components/ReciboDomicilio'
 
 const COLUMNAS = [
   { key: 'pendiente', titulo: 'PENDIENTES', estados: ['pendiente', 'pendiente_confirmacion'] },
   { key: 'despachado', titulo: 'DESPACHADOS', estados: ['despachado'] },
 ]
 
-const FORM_VACIO = { nombre:'', telefono:'', direccion:'' }
+const LIMITE_VISIBLE = 2
+
+const METODOS_PAGO = [
+  { key: 'efectivo', label: 'Efectivo', icon: Banknote },
+  { key: 'tarjeta', label: 'Tarjeta', icon: CreditCard },
+  { key: 'transferencia', label: 'Transferencia', icon: Landmark },
+]
+
+const FORM_VACIO = { nombre:'', telefono:'', direccion:'', referencia:'' }
 
 function Temporizador({ fecha }) {
   const [elapsed, setElapsed] = useState('')
@@ -43,9 +52,12 @@ export default function Domicilios() {
   const [menuCompleto, setMenu]     = useState([])
   const [modalAbierto, setModal]    = useState(false)
   const [cancelModal, setCancelModal] = useState(null)
+  const [reciboVer, setReciboVer]   = useState(null)
+  const [expandidos, setExpandidos] = useState({})
 
   const [form, setForm]             = useState(FORM_VACIO)
   const [tipoEntrega, setTipoEntrega] = useState('domicilio')
+  const [metodoPago, setMetodoPago] = useState('efectivo')
   const [costoEnvio, setCostoEnvio] = useState('')
   const [items, setItems]           = useState([])
   const [busqueda, setBusqueda]     = useState('')
@@ -116,12 +128,12 @@ export default function Domicilios() {
       return
     }
     await api.addDomicilio({
-      nombre: form.nombre, telefono: form.telefono, direccion: form.direccion,
+      nombre: form.nombre, telefono: form.telefono, direccion: form.direccion, referencia: form.referencia || '',
       items: items.map(x => ({ nombre: x.nombre, precio: x.precio, cantidad: x.cantidad, notas: x.notas || '' })),
-      tipoEntrega, costoEnvio: envio,
+      tipoEntrega, costoEnvio: envio, metodoPago,
     })
     setModal(false)
-    setForm(FORM_VACIO); setTipoEntrega('domicilio'); setCostoEnvio('')
+    setForm(FORM_VACIO); setTipoEntrega('domicilio'); setCostoEnvio(''); setMetodoPago('efectivo')
     setItems([]); setBusqueda(''); setItemSel(null)
     cargar()
   }
@@ -154,10 +166,19 @@ export default function Domicilios() {
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text,
       fontFamily:'Segoe UI, sans-serif' }}>
+      <style>{`
+        @media (max-width: 760px) {
+          .cabuyal-domi-header { flex-wrap: wrap !important; }
+          .cabuyal-domi-stats { grid-template-columns: 1fr 1fr !important; }
+          .cabuyal-domi-kanban { grid-template-columns: 1fr !important; }
+          .cabuyal-domi-modal-row { flex-direction: column !important; overflow-y: auto !important; }
+          .cabuyal-domi-modal-right { width: 100% !important; }
+        }
+      `}</style>
 
       {/* HEADER */}
-      <div style={{ background:C.header, borderBottom:`3px solid ${C.gold}`,
-        display:'flex', alignItems:'stretch' }}>
+      <div className="cabuyal-domi-header" style={{ background:C.header, borderBottom:`3px solid ${C.gold}`,
+        display:'flex', alignItems:'stretch', flexWrap:'wrap' }}>
         <div style={{ flex:1, padding:'10px 24px', display:'flex',
           flexDirection:'column', justifyContent:'center' }}>
           <div style={{ color:C.gold, fontSize:22, fontWeight:800, letterSpacing:4 }}>
@@ -184,13 +205,14 @@ export default function Domicilios() {
       </div>
 
       {/* STATS */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:1, background:C.border }}>
+      <div className="cabuyal-domi-stats" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, padding:'16px 20px 0' }}>
         {[
           { label:'PENDIENTES', val: domicilios.filter(d=>d.estado!=='despachado').length,  color:C.terracotta },
           { label:'DESPACHADOS HOY', val: domicilios.filter(d=>d.estado==='despachado').length, color:C.success },
-          { label:'TOTAL HOY',  val: `$${totalHoy.toLocaleString('es-CO')}`, color:C.goldDark },
+          { label:'TOTAL HOY',  val: `$${totalHoy.toLocaleString('es-CO')}`, color:C.teal },
         ].map(s => (
-          <div key={s.label} style={{ background:C.surface, padding:'10px 16px', textAlign:'center' }}>
+          <div key={s.label} style={{ background:C.surface, padding:'12px 16px', textAlign:'center',
+            borderRadius:12, border:`1px solid ${C.border}`, boxShadow:'0 2px 8px rgba(11,36,54,0.05)' }}>
             <div style={{ fontSize:20, fontWeight:800, color:s.color }}>{s.val}</div>
             <div style={{ fontSize:10, color:C.textMuted, letterSpacing:1 }}>{s.label}</div>
           </div>
@@ -222,9 +244,11 @@ export default function Domicilios() {
       )}
 
       {/* TABLERO KANBAN */}
-      <div style={{ padding:20, display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'start' }}>
+      <div className="cabuyal-domi-kanban" style={{ padding:20, display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, alignItems:'start' }}>
         {COLUMNAS.map(col => {
           const items = domicilios.filter(d => col.estados.includes(d.estado))
+          const expandido = !!expandidos[col.key]
+          const visibles = expandido ? items : items.slice(0, LIMITE_VISIBLE)
           return (
             <div key={col.key} onDragOver={onDragOverCol} onDrop={(e) => onDropCol(e, col.key)}
               style={{ background:C.surfaceAlt, border:`1px dashed ${C.border}`, borderRadius:14, padding:14, minHeight:200 }}>
@@ -241,7 +265,7 @@ export default function Domicilios() {
                 </div>
               ) : (
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  {items.map(d => (
+                  {visibles.map(d => (
                     <div key={d.id} draggable onDragStart={(e) => onDragStart(e, d)}
                       style={{ background:C.surface, border:`1px solid ${C.border}`,
                         borderRadius:12, overflow:'hidden', boxShadow:'0 3px 10px rgba(43,36,32,0.06)',
@@ -269,6 +293,14 @@ export default function Domicilios() {
                               <Globe size={10}/> CATÁLOGO
                             </span>
                           )}
+                          {d.metodoPago && (
+                            <span style={{
+                              display:'flex', alignItems:'center', gap:4, background:'#ffffff18',
+                              color:C.gold, borderRadius:6, padding:'2px 7px', fontSize:9, fontWeight:800, letterSpacing:1,
+                              textTransform:'uppercase' }}>
+                              {d.metodoPago}
+                            </span>
+                          )}
                         </div>
                         {d.estado !== 'despachado' && <Temporizador fecha={d.fecha}/>}
                       </div>
@@ -287,6 +319,11 @@ export default function Domicilios() {
                           <MapPin size={12} color={C.textFaint} style={{ marginTop:2 }}/>
                           <span style={{ color:C.textMuted, fontSize:12 }}>{d.direccion}</span>
                         </div>
+                        {d.referencia && (
+                          <div style={{ marginTop:4, marginLeft:20, color:C.textMuted, fontSize:11, fontStyle:'italic' }}>
+                            {d.referencia}
+                          </div>
+                        )}
                         {d.creadoPor && (
                           <div style={{ marginTop:6, color:C.goldDark, fontSize:11 }}>Tomado por: {d.creadoPor}</div>
                         )}
@@ -350,6 +387,14 @@ export default function Domicilios() {
                             VOLVER A PENDIENTE
                           </button>
                         )}
+                        {d.estado === 'despachado' && (
+                          <button onClick={() => setReciboVer(d)}
+                            style={{ padding:'9px 12px', borderRadius:8, border:`1px solid ${C.gold}`,
+                              background:C.goldBg, color:C.goldDark, fontWeight:700, fontSize:11,
+                              cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                            <Receipt size={13}/>
+                          </button>
+                        )}
                         {d.estado !== 'despachado' && (
                           <button onClick={() => setCancelModal(d.id)}
                             style={{ padding:'9px 12px', borderRadius:8, border:'none',
@@ -361,6 +406,14 @@ export default function Domicilios() {
                       </div>
                     </div>
                   ))}
+                  {items.length > LIMITE_VISIBLE && (
+                    <button onClick={() => setExpandidos(prev => ({ ...prev, [col.key]: !expandido }))}
+                      style={{ padding:'9px 0', borderRadius:8, border:`1px dashed ${C.border}`,
+                        background:'transparent', color:C.textMuted, fontWeight:700, fontSize:11,
+                        cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                      {expandido ? <><ChevronUp size={13}/> VER MENOS</> : <><ChevronDown size={13}/> VER MÁS ({items.length - LIMITE_VISIBLE})</>}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -394,10 +447,10 @@ export default function Domicilios() {
               </button>
             </div>
 
-            <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+            <div className="cabuyal-domi-modal-row" style={{ display:'flex', flex:1, overflow:'hidden' }}>
 
               {/* IZQUIERDA */}
-              <div style={{ flex:1, padding:24, overflowY:'auto',
+              <div style={{ flex:1, minWidth:0, padding:24, overflowY:'auto',
                 borderRight:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:20 }}>
 
                 {/* Tipo de entrega */}
@@ -441,6 +494,7 @@ export default function Domicilios() {
                       { icon: <User size={14} color={C.goldDark}/>,  key:'nombre',    ph:'Nombre del cliente' },
                       { icon: <Phone size={14} color={C.goldDark}/>, key:'telefono',  ph:'Número de teléfono' },
                       { icon: <MapPin size={14} color={C.goldDark}/>,key:'direccion', ph: tipoEntrega==='recoger' ? 'Dirección (referencia, opcional)' : 'Dirección de entrega' },
+                      { icon: <Home size={14} color={C.goldDark}/>,  key:'referencia',ph:'Datos de la casa (torre, apto, color, referencia)' },
                     ].map(f => (
                       <div key={f.key} style={{ display:'flex', alignItems:'center', gap:10,
                         background:C.bgAlt, border:`1px solid ${C.border}`, borderRadius:8,
@@ -452,6 +506,24 @@ export default function Domicilios() {
                           style={{ flex:1, background:'transparent', border:'none', outline:'none',
                             color:C.text, fontSize:13, padding:'11px 0' }}/>
                       </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Método de pago */}
+                <div>
+                  <div style={{ color:C.goldDark, fontSize:11, fontWeight:800,
+                    letterSpacing:2, marginBottom:10 }}>MÉTODO DE PAGO</div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    {METODOS_PAGO.map(({ key, label, icon:Icon }) => (
+                      <button key={key} onClick={() => setMetodoPago(key)}
+                        style={{ flex:1, padding:'10px 4px', borderRadius:9, cursor:'pointer',
+                          display:'flex', flexDirection:'column', alignItems:'center', gap:5, fontSize:11, fontWeight:700,
+                          background: metodoPago===key ? C.goldBg : C.bgAlt,
+                          color: metodoPago===key ? C.goldDark : C.textMuted,
+                          border:`1.5px solid ${metodoPago===key ? C.gold : C.border}` }}>
+                        <Icon size={15}/> {label}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -598,8 +670,8 @@ export default function Domicilios() {
               </div>
 
               {/* DERECHA — resumen */}
-              <div style={{ width:260, padding:20, background:C.surfaceAlt,
-                display:'flex', flexDirection:'column', gap:12 }}>
+              <div className="cabuyal-domi-modal-right" style={{ width:260, padding:20, background:C.surfaceAlt,
+                display:'flex', flexDirection:'column', gap:12, flexShrink:0 }}>
                 <div style={{ color:C.goldDark, fontSize:11, fontWeight:800, letterSpacing:2 }}>
                   RESUMEN
                 </div>
@@ -683,6 +755,8 @@ export default function Domicilios() {
           </div>
         </div>
       )}
+
+      {reciboVer && <ReciboDomicilio domicilio={reciboVer} onClose={() => setReciboVer(null)} />}
     </div>
   )
 }

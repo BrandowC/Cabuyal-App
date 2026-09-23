@@ -44,7 +44,7 @@ export default function Usuarios() {
 
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text, fontFamily:'Segoe UI,sans-serif', padding:24 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12 }}>
         <div>
           <div style={{ color:C.goldDark, fontSize:20, fontWeight:800, letterSpacing:2 }}>USUARIOS</div>
           <div style={{ color:C.textMuted, fontSize:12 }}>{usuarios.length} cuenta(s)</div>
@@ -56,8 +56,8 @@ export default function Usuarios() {
         </button>
       </div>
 
-      <div style={{ background:C.surface, borderRadius:10, overflow:'hidden', border:`1px solid ${C.border}` }}>
-        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+      <div style={{ background:C.surface, borderRadius:10, overflowX:'auto', border:`1px solid ${C.border}` }}>
+        <table style={{ width:'100%', minWidth:520, borderCollapse:'collapse', fontSize:13 }}>
           <thead>
             <tr style={{ background:C.header, borderBottom:`1px solid ${C.gold}55` }}>
               {['Nombre','Usuario','Rol','Estado','Acciones'].map(h => (

@@ -1,0 +1,19 @@
+-- AlterTable
+ALTER TABLE "Domicilio" ADD COLUMN     "costoEnvio" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "creadoPor" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "subtotal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "tipoEntrega" TEXT NOT NULL DEFAULT 'domicilio';
+
+-- AlterTable
+ALTER TABLE "DomicilioItem" ADD COLUMN     "notas" TEXT NOT NULL DEFAULT '';
+
+-- AlterTable
+ALTER TABLE "Pedido" ADD COLUMN     "ventaId" INTEGER;
+
+-- AlterTable
+ALTER TABLE "Venta" ADD COLUMN     "metodoPago" TEXT NOT NULL DEFAULT 'efectivo',
+ADD COLUMN     "propina" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "subtotal" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AddForeignKey
+ALTER TABLE "Pedido" ADD CONSTRAINT "Pedido_ventaId_fkey" FOREIGN KEY ("ventaId") REFERENCES "Venta"("id") ON DELETE SET NULL ON UPDATE CASCADE;

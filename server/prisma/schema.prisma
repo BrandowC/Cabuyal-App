@@ -94,6 +94,7 @@ model Venta {
   subtotal   Float    @default(0)
   propina    Float    @default(0)
   metodoPago String   @default("efectivo") // efectivo | tarjeta | transferencia
+  notasPago  String   @default("") // ej: pago dividido "20.000 Nequi + 20.000 efectivo"
   mesero     String   @default("")
   fecha      DateTime @default(now())
 
@@ -107,10 +108,12 @@ model Domicilio {
   nombre      String
   telefono    String
   direccion   String
+  referencia  String          @default("") // detalles de la casa: torre, apto, color, punto de referencia
   subtotal    Float           @default(0)
   costoEnvio  Float           @default(0)
   total       Float           @default(0)
   tipoEntrega String          @default("domicilio") // domicilio | recoger
+  metodoPago  String          @default("efectivo") // efectivo | tarjeta | transferencia
   estado      String          @default("pendiente") // pendiente | pendiente_confirmacion | despachado | cancelado
   creadoPor   String          @default("") // nombre del empleado (vacío si vino del catálogo público)
   fecha       DateTime        @default(now())

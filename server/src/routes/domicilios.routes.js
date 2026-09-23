@@ -49,20 +49,22 @@ const addSchema = z.object({
   nombre: z.string().min(1),
   telefono: z.string().min(1),
   direccion: z.string().min(1),
+  referencia: z.string().optional().default(''),
   items: z.array(itemSchema).min(1),
   tipoEntrega: z.enum(['domicilio', 'recoger']).optional().default('domicilio'),
   costoEnvio: z.number().nonnegative().optional().default(0),
+  metodoPago: z.enum(['efectivo', 'tarjeta', 'transferencia']).optional().default('efectivo'),
 })
 
 router.post('/', validateBody(addSchema), async (req, res) => {
-  const { nombre, telefono, direccion, items, tipoEntrega, costoEnvio } = req.body
+  const { nombre, telefono, direccion, referencia, items, tipoEntrega, costoEnvio, metodoPago } = req.body
   const subtotal = items.reduce((s, i) => s + i.precio * i.cantidad, 0)
   const envio = tipoEntrega === 'domicilio' ? costoEnvio : 0
   const total = subtotal + envio
 
   const domicilio = await prisma.domicilio.create({
     data: {
-      nombre, telefono, direccion, subtotal, costoEnvio: envio, total, tipoEntrega,
+      nombre, telefono, direccion, referencia, subtotal, costoEnvio: envio, total, tipoEntrega, metodoPago,
       creadoPor: req.user.nombre,
       items: { create: items },
     },

@@ -60,6 +60,13 @@ export default function Recibo({ venta, onClose }) {
             {venta.propina > 0 && <Fila label="Propina (voluntaria)" val={`$${Number(venta.propina).toLocaleString('es-CO')}`} />}
           </div>
 
+          {venta.notasPago && (
+            <div style={{ background: '#F8F3E6', borderRadius: 8, padding: '8px 10px', marginTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, color: '#8A7C63' }}>NOTAS DE PAGO</div>
+              <div style={{ fontSize: 12, color: '#2B2420', marginTop: 2 }}>{venta.notasPago}</div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             marginTop: 12, paddingTop: 12, borderTop: '2px solid #231D18' }}>
             <span style={{ fontWeight: 800, letterSpacing: 1 }}>TOTAL</span>

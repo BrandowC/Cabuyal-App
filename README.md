@@ -1,12 +1,11 @@
 # El Cabuyal — Sistema de restaurante
 
-Aplicación web con backend en Node/Express + PostgreSQL (Prisma) y frontend en React + Vite. Reemplaza la antigua versión de escritorio en Electron con sql.js.
+Aplicación web con backend en Node/Express + PostgreSQL (Prisma) y frontend en React + Vite. Sin componente de escritorio: caja/admin usan el navegador y el mesero instala la web como PWA en el celular.
 
 ## Estructura
 
 - `server/` — API REST (Express), tiempo real (Socket.io), Postgres vía Prisma, autenticación por rol (admin, empleado, caja).
 - `web/` — Frontend React (SPA + catálogo público instalable como PWA).
-- `electron/` — versión de escritorio anterior, fuera del flujo de build actual (se conserva por referencia).
 
 ## Puesta en marcha (desarrollo)
 
@@ -34,7 +33,7 @@ Aplicación web con backend en Node/Express + PostgreSQL (Prisma) y frontend en 
 
 ## Roles
 
-- **admin**: acceso completo — menú, editor visual de mesas, ventas/reportes, usuarios, domicilios.
+- **admin**: acceso completo — menú, menú del día, ventas/reportes, usuarios, domicilios.
 - **caja**: mesas, ventas, domicilios, exportar reporte de ganancias (sin gestión de menú ni usuarios).
 - **empleado** (mesero): solo mesas, para tomar pedidos desde el celular (pensado como PWA — "instalar" la página desde el navegador del teléfono).
 
