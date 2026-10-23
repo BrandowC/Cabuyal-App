@@ -48,12 +48,14 @@ const itemSchema = z.object({
 const addSchema = z.object({
   nombre: z.string().min(1),
   telefono: z.string().min(1),
-  direccion: z.string().min(1),
+  direccion: z.string().optional().default(''),
   referencia: z.string().optional().default(''),
   items: z.array(itemSchema).min(1),
   tipoEntrega: z.enum(['domicilio', 'recoger']).optional().default('domicilio'),
   costoEnvio: z.number().nonnegative().optional().default(0),
   metodoPago: z.enum(['efectivo', 'tarjeta', 'transferencia']).optional().default('efectivo'),
+}).refine((d) => d.tipoEntrega === 'recoger' || d.direccion.trim().length > 0, {
+  message: 'La dirección es obligatoria para domicilios', path: ['direccion'],
 })
 
 router.post('/', validateBody(addSchema), async (req, res) => {

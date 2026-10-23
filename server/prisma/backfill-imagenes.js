@@ -3,19 +3,30 @@
 // los que ya tengan imagenUrl o descripción propia cargada desde Menú.
 const { PrismaClient } = require('@prisma/client')
 const { IMAGENES_CATEGORIA } = require('./imagenes-categoria')
+const { IMAGENES_PLATO } = require('./imagenes-plato')
 const { DESCRIPCIONES } = require('./descripciones-menu')
 
 const prisma = new PrismaClient()
 
 async function backfillImagenes() {
   let total = 0
+  // Foto propia del plato (por nombre). Solo reemplaza si no tiene foto o tiene la
+  // genérica de su categoría; nunca pisa una URL que se haya cargado desde Menú.
+  const genericas = Object.values(IMAGENES_CATEGORIA)
+  for (const [nombre, url] of Object.entries(IMAGENES_PLATO)) {
+    const { count } = await prisma.plato.updateMany({
+      where: { nombre, OR: [{ imagenUrl: null }, { imagenUrl: { in: genericas } }] },
+      data: { imagenUrl: url },
+    })
+    total += count
+  }
+  // Lo que no tenga foto por nombre queda con la de su categoría
   for (const [categoria, url] of Object.entries(IMAGENES_CATEGORIA)) {
     const { count } = await prisma.plato.updateMany({
       where: { categoria, imagenUrl: null },
       data: { imagenUrl: url },
     })
     total += count
-    if (count > 0) console.log(`Imagen — ${categoria}: ${count} plato(s) actualizados`)
   }
   return total
 }

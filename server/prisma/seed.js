@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
 const { IMAGENES_CATEGORIA } = require('./imagenes-categoria')
+const { IMAGENES_PLATO } = require('./imagenes-plato')
 const { DESCRIPCIONES } = require('./descripciones-menu')
 
 const prisma = new PrismaClient()
@@ -101,7 +102,7 @@ async function seedMenu() {
   await prisma.plato.createMany({
     data: [...comidas, ...bebidas].map(([nombre, categoria, precio]) => ({
       nombre, categoria, precio,
-      imagenUrl: IMAGENES_CATEGORIA[categoria] || null,
+      imagenUrl: IMAGENES_PLATO[nombre] || IMAGENES_CATEGORIA[categoria] || null,
       descripcion: DESCRIPCIONES[nombre] || '',
     })),
   })

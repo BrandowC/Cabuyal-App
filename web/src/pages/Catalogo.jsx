@@ -46,17 +46,32 @@ const SLIDES = [
 
 function Coverflow({ T }) {
   const [i, setI] = useState(0)
+  const [pausa, setPausa] = useState(false)
+  const drag = useRef({ x: 0, activo: false })
   const n = SLIDES.length
 
+  // Avanza solo; se reinicia tras cada cambio (también tras deslizar) y se pausa mientras el dedo está encima
   useEffect(() => {
-    const iv = setInterval(() => setI((v) => (v + 1) % n), 4200)
-    return () => clearInterval(iv)
-  }, [n])
+    if (pausa) return undefined
+    const t = setTimeout(() => setI((v) => (v + 1) % n), 3500)
+    return () => clearTimeout(t)
+  }, [n, i, pausa])
+
+  const soltar = (e) => {
+    if (!drag.current.activo) return
+    drag.current.activo = false
+    const dx = e.clientX - drag.current.x
+    if (Math.abs(dx) > 35) setI((v) => (dx < 0 ? (v + 1) % n : (v - 1 + n) % n))
+    setPausa(false)
+  }
 
   return (
     <div style={{ padding: '18px 0 6px' }}>
-      <div style={{ position: 'relative', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        perspective: '900px' }}>
+      <div
+        onPointerDown={(e) => { drag.current = { x: e.clientX, activo: true }; setPausa(true) }}
+        onPointerUp={soltar} onPointerCancel={soltar} onPointerLeave={soltar}
+        style={{ position: 'relative', height: 210, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          perspective: '900px', overflow: 'hidden', touchAction: 'pan-y', userSelect: 'none', cursor: 'grab' }}>
         {SLIDES.map((s, idx) => {
           let offset = idx - i
           if (offset > n / 2) offset -= n
@@ -67,8 +82,8 @@ function Coverflow({ T }) {
           const tilt = offset * 38
           const x = offset * 108
           return (
-            <div key={s.url} onClick={() => setI(idx)}
-              style={{ position: 'absolute', width: 160, height: 160, borderRadius: 18, overflow: 'hidden', cursor: 'pointer',
+            <div key={s.url}
+              style={{ position: 'absolute', width: 160, height: 160, borderRadius: 18, overflow: 'hidden', pointerEvents: 'none',
                 boxShadow: dist === 0 ? '0 14px 30px rgba(0,0,0,0.28)' : '0 6px 16px rgba(0,0,0,0.18)',
                 border: `2px solid ${dist === 0 ? T.accent : T.border}`,
                 transform: `translateX(${x}px) scale(${scale}) rotateY(${-tilt}deg)`,
@@ -86,20 +101,6 @@ function Coverflow({ T }) {
           )
         })}
 
-        <button onClick={() => setI((v) => (v - 1 + n) % n)} aria-label="Anterior"
-          style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', zIndex: 20,
-            width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            background: T.card, color: T.text, boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ChevronLeft size={16} />
-        </button>
-        <button onClick={() => setI((v) => (v + 1) % n)} aria-label="Siguiente"
-          style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', zIndex: 20,
-            width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-            background: T.card, color: T.text, boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <ChevronRight size={16} />
-        </button>
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 10 }}>
@@ -109,8 +110,8 @@ function Coverflow({ T }) {
 
       <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8 }}>
         {SLIDES.map((_, idx) => (
-          <button key={idx} onClick={() => setI(idx)} aria-label={`Ir a la imagen ${idx + 1}`}
-            style={{ width: i === idx ? 16 : 6, height: 6, borderRadius: 4, border: 'none', cursor: 'pointer',
+          <div key={idx}
+            style={{ width: i === idx ? 16 : 6, height: 6, borderRadius: 4,
               background: i === idx ? T.accent : T.border, transition: 'all .25s ease' }} />
         ))}
       </div>
@@ -127,6 +128,7 @@ export default function Catalogo() {
   const [carritoAbierto, setCarritoAbierto] = useState(false)
   const [paso, setPaso] = useState(0)
   const [form, setForm] = useState({ nombre: '', telefono: '', direccion: '', referencia: '' })
+  const [tipoEntrega, setTipoEntrega] = useState('domicilio')
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [enviando, setEnviando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState('')
@@ -217,16 +219,20 @@ export default function Catalogo() {
     setForm((prev) => ({ ...prev, [key]: v }))
   }
 
+  const esRecoger = tipoEntrega === 'recoger'
+  const datosCompletos = !!form.nombre && form.telefono.length === 10 && (esRecoger || !!form.direccion)
+
   const enviarPedido = async () => {
-    if (!form.nombre || form.telefono.length !== 10 || !form.direccion || carrito.length === 0) return
+    if (!datosCompletos || carrito.length === 0) return
     setEnviando(true)
     setErrorEnvio('')
     try {
       await api.addDomicilioPublico({
         nombre: form.nombre,
         telefono: form.telefono,
-        direccion: form.direccion,
-        referencia: form.referencia.trim(),
+        direccion: esRecoger ? '' : form.direccion,
+        referencia: esRecoger ? '' : form.referencia.trim(),
+        tipoEntrega,
         metodoPago,
         items: carrito.map((x) => ({ nombre: x.nombre, precio: x.precio, cantidad: x.cantidad, notas: x.notas || '' })),
         total,
@@ -239,12 +245,12 @@ export default function Catalogo() {
           return linea
         })
         const mensaje = [
-          'Pedido a domicilio — El Cabuyal',
-          `Nombre: ${form.nombre}`, `Teléfono: ${form.telefono}`, `Dirección: ${form.direccion}`,
-          ...(form.referencia.trim() ? [`Referencia: ${form.referencia.trim()}`] : []),
+          esRecoger ? '🏪 Pedido para recoger — El Cabuyal' : '🛵 Pedido a domicilio — El Cabuyal',
+          `Nombre: ${form.nombre}`, `Teléfono: ${form.telefono}`,
+          ...(esRecoger ? [] : [`Dirección: ${form.direccion}`]),
+          ...(!esRecoger && form.referencia.trim() ? [`Referencia: ${form.referencia.trim()}`] : []),
           '', ...lineas, '',
           `Subtotal: $${total.toLocaleString('es-CO')}`,
-          `TOTAL: $${total.toLocaleString('es-CO')}`,
           `Método de pago: ${METODOS_PAGO.find((m) => m.key === metodoPago)?.label || metodoPago}`,
         ].join('\n')
         window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`, '_blank')
@@ -291,15 +297,20 @@ export default function Catalogo() {
         @keyframes cabuyal-modal-in { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         .cabuyal-card { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; cursor: pointer; }
         .cabuyal-card:hover { transform: translateY(-5px); }
+        .cabuyal-pop { width: 124px; height: 124px; transition: transform .3s cubic-bezier(.25,.85,.3,1); }
+        .cabuyal-card:hover .cabuyal-pop { transform: scale(1.08) rotate(-4deg); }
+        .cabuyal-card:active .cabuyal-pop { transform: scale(1.05); }
+        html, body { overflow-x: hidden; }
         .cabuyal-add:active { transform: scale(0.94); }
         .cabuyal-chip { transition: all .18s ease; }
         .cabuyal-cat-nav { scrollbar-width: none; }
         .cabuyal-cat-nav::-webkit-scrollbar { display: none; }
-        .cabuyal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+        .cabuyal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 62px 14px; padding-top: 52px; }
         .cabuyal-header-inner { gap: 14px; }
         .cabuyal-logo { width: 70px; height: 70px; }
         @media (max-width: 480px) {
-          .cabuyal-grid { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+          .cabuyal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 62px 10px; padding-top: 52px; }
+          .cabuyal-pop { width: 104px; height: 104px; }
           .cabuyal-header-inner { gap: 10px; }
           .cabuyal-logo { width: 52px; height: 52px; }
           .cabuyal-titulo { font-size: 15px !important; letter-spacing: 1.5px !important; }
@@ -371,11 +382,20 @@ export default function Catalogo() {
         <div className="cabuyal-grid">
           {productosVista.map((p) => (
             <div key={p.id} className="cabuyal-card" onClick={() => setVerProducto(p)} style={{ background: T.card, border: `1px solid ${T.border}`,
-              borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 8px rgba(11,36,54,0.08)' }}>
-              <div style={{ height: 110, background: p.imagenUrl
-                ? `center/cover no-repeat url(${p.imagenUrl})`
-                : `linear-gradient(135deg, ${T.imgFrom}, ${T.imgTo})` }} />
-              <div style={{ padding: 12 }}>
+              borderRadius: 16, boxShadow: '0 2px 8px rgba(11,36,54,0.08)', position: 'relative',
+              display: 'flex', flexDirection: 'column' }}>
+              {/* La imagen sobresale de la tarjeta por arriba */}
+              <div className="cabuyal-pop" style={{ margin: '-52px auto 0', borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                background: `linear-gradient(135deg, ${T.imgFrom}, ${T.imgTo})`,
+                border: `4px solid ${T.card}`, boxSizing: 'border-box',
+                boxShadow: '0 16px 22px -6px rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.2)' }}>
+                {p.imagenUrl && (
+                  <img src={p.imagenUrl} alt={p.nombre} loading="lazy" draggable={false}
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                )}
+              </div>
+              <div style={{ padding: '10px 12px 12px', textAlign: 'center', display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{p.nombre}</div>
                 {p.descripcion && (
                   <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4, lineHeight: 1.4,
@@ -383,11 +403,11 @@ export default function Catalogo() {
                     {p.descripcion}
                   </div>
                 )}
-                <div style={{ color: T.accent2, fontWeight: 800, fontSize: 14, marginTop: 6 }}>
+                <div style={{ color: T.accent2, fontWeight: 800, fontSize: 15, marginTop: 6 }}>
                   ${p.precio.toLocaleString('es-CO')}
                 </div>
                 <button className="cabuyal-add" onClick={(e) => { e.stopPropagation(); agregar(p, e) }}
-                  style={{ width: '100%', marginTop: 9, padding: '8px 0', borderRadius: 9, border: 'none',
+                  style={{ width: '100%', marginTop: 'auto', padding: '10px 0', borderRadius: 9, border: 'none',
                     background: T.btnDark, color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     transition: 'transform .12s ease' }}>
@@ -539,7 +559,7 @@ export default function Catalogo() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', margin: '14px 0', padding: '10px 12px',
                     background: `${c1}18`, borderRadius: 10 }}>
-                    <span style={{ color: T.textMuted, fontWeight: 700, fontSize: 12 }}>TOTAL</span>
+                    <span style={{ color: T.textMuted, fontWeight: 700, fontSize: 12 }}>SUBTOTAL</span>
                     <span style={{ color: c1 === T.accent ? T.accentDark : c1, fontWeight: 800, fontSize: 17 }}>${total.toLocaleString('es-CO')}</span>
                   </div>
 
@@ -550,12 +570,34 @@ export default function Catalogo() {
               {/* PASO 2: DATOS */}
               {paso === 1 && (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6, marginBottom: 12 }}>
+                    {[
+                      { key: 'domicilio', emoji: '🛵', label: 'Domicilio' },
+                      { key: 'recoger', emoji: '🏪', label: 'Recoger' },
+                    ].map(({ key, emoji, label }) => (
+                      <button key={key} onClick={() => setTipoEntrega(key)}
+                        style={{ flex: 1, padding: '10px 4px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                          background: tipoEntrega === key ? T.btnDark : T.bgAlt,
+                          color: tipoEntrega === key ? '#fff' : T.textMuted,
+                          border: `1px solid ${tipoEntrega === key ? T.btnDark : T.border}` }}>
+                        <span style={{ fontSize: 17 }}>{emoji}</span> {label}
+                      </button>
+                    ))}
+                  </div>
+                  {esRecoger && (
+                    <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 10, lineHeight: 1.4 }}>
+                      Pasas por tu pedido al local. Solo necesitamos tu nombre y celular.
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                     {[
                       { icon: <User size={13} color={c2} />, key: 'nombre', ph: 'Nombre completo (solo letras)' },
                       { icon: <Phone size={13} color={c2} />, key: 'telefono', ph: 'Celular (10 dígitos)', inputMode: 'numeric', maxLength: 10 },
-                      { icon: <MapPin size={13} color={c2} />, key: 'direccion', ph: 'Dirección de entrega' },
-                      { icon: <Home size={13} color={c2} />, key: 'referencia', ph: 'Datos de la casa (torre, apto, color, referencia)' },
+                      ...(esRecoger ? [] : [
+                        { icon: <MapPin size={13} color={c2} />, key: 'direccion', ph: 'Dirección de entrega' },
+                        { icon: <Home size={13} color={c2} />, key: 'referencia', ph: 'Datos de la casa (torre, apto, color, referencia)' },
+                      ]),
                     ].map((f) => (
                       <div key={f.key}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bgAlt,
@@ -575,7 +617,7 @@ export default function Catalogo() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <BotonAtras T={T} onClick={() => setPaso(0)} />
-                    <BotonPaso T={T} disabled={!form.nombre || form.telefono.length !== 10 || !form.direccion}
+                    <BotonPaso T={T} disabled={!datosCompletos}
                       onClick={() => setPaso(2)} texto="CONTINUAR" />
                   </div>
                 </>
@@ -585,10 +627,13 @@ export default function Catalogo() {
               {paso === 2 && (
                 <>
                   <div style={{ background: T.bgAlt, border: `1px solid ${T.border}`, borderRadius: 11, padding: 12, marginTop: 6, marginBottom: 14 }}>
+                    <div style={{ fontWeight: 800, fontSize: 12, marginBottom: 6, color: T.accent3 }}>
+                      {esRecoger ? '🏪 Recoger en el local' : '🛵 Domicilio'}
+                    </div>
                     <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>{form.nombre}</div>
                     <div style={{ color: T.textMuted, fontSize: 11, marginBottom: 2 }}>{form.telefono}</div>
-                    <div style={{ color: T.textMuted, fontSize: 11 }}>{form.direccion}</div>
-                    {form.referencia && (
+                    {!esRecoger && <div style={{ color: T.textMuted, fontSize: 11 }}>{form.direccion}</div>}
+                    {!esRecoger && form.referencia && (
                       <div style={{ color: T.textMuted, fontSize: 11, marginTop: 2, fontStyle: 'italic' }}>{form.referencia}</div>
                     )}
                   </div>
@@ -622,13 +667,15 @@ export default function Catalogo() {
                   </div>
 
                   <div style={{ margin: '14px 0', padding: '10px 12px', background: `${c3}18`, borderRadius: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: T.textMuted, marginBottom: 4 }}>
-                      <span>Subtotal</span><span>${total.toLocaleString('es-CO')}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: `1px dashed ${T.border}` }}>
-                      <span style={{ color: T.textMuted, fontWeight: 700, fontSize: 12 }}>TOTAL</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: T.textMuted, fontWeight: 700, fontSize: 12 }}>SUBTOTAL</span>
                       <span style={{ color: c3, fontWeight: 800, fontSize: 19 }}>${total.toLocaleString('es-CO')}</span>
                     </div>
+                    {!esRecoger && (
+                      <div style={{ color: T.textMuted, fontSize: 10, marginTop: 4 }}>
+                        El costo del domicilio se confirma al validar tu pedido.
+                      </div>
+                    )}
                   </div>
 
                   {errorEnvio && (

@@ -1,6 +1,8 @@
 require('dotenv').config()
 
 const http = require('http')
+const path = require('path')
+const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
@@ -23,7 +25,16 @@ const menuDiaRoutes = require('./routes/menuDia.routes')
 
 const app = express()
 
-app.use(helmet())
+// Render (y cualquier hosting con proxy) termina el HTTPS delante de la app: sin esto las cookies
+// "secure" y el rate-limit por IP no funcionan bien.
+app.set('trust proxy', 1)
+
+// Las fotos del menú vienen de URLs externas (Unsplash u otras que cargue el admin), así que img-src permite https.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'img-src': ["'self'", 'data:', 'https:'] },
+  },
+}))
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }))
 app.use(express.json())
 app.use(cookieParser())
@@ -40,6 +51,17 @@ app.use('/api/usuarios', usuariosRoutes)
 app.use('/api/publico', publicoRoutes)
 app.use('/api/reportes', reportesRoutes)
 app.use('/api/menu-dia', menuDiaRoutes)
+
+// En producción el mismo servidor entrega la web compilada (misma URL para la web y la API:
+// sin CORS y con las cookies de sesión funcionando).
+const WEB_DIST = path.join(__dirname, '..', '..', 'web', 'dist')
+if (fs.existsSync(WEB_DIST)) {
+  app.use(express.static(WEB_DIST, { index: false, maxAge: '1h' }))
+  app.get(/^\/(?!api\/|socket\.io\/).*/, (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache')
+    res.sendFile(path.join(WEB_DIST, 'index.html'))
+  })
+}
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }))
 
