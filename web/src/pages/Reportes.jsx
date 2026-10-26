@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { TrendingUp, Receipt, Bike, Wallet, Users, UtensilsCrossed, Clock } from 'lucide-react'
+import { TrendingUp, Receipt, Bike, Wallet, Users, UtensilsCrossed, Clock, FileSpreadsheet } from 'lucide-react'
 import api from '../lib/api'
 import { C } from '../theme'
 
@@ -63,6 +63,8 @@ export default function Reportes() {
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
   const [ordenPlato, setOrdenPlato] = useState('cantidad')
+  const [exportando, setExportando] = useState(false)
+  const [mensaje, setMensaje] = useState('')
 
   const cargar = useCallback(async () => {
     if (filtro === 'rango' && (!desde || !hasta)) return
@@ -75,6 +77,20 @@ export default function Reportes() {
       setCargando(false)
     }
   }, [filtro, desde, hasta])
+
+  // Excel de ventas del periodo elegido (por defecto, el de hoy); el administrador lo descarga cada día
+  const exportarExcel = async () => {
+    setExportando(true); setMensaje('')
+    try {
+      await api.descargarReporteGanancias(filtro === 'rango' ? { desde, hasta } : { filtro })
+      setMensaje('✅ Excel descargado')
+    } catch (err) {
+      setMensaje(`❌ ${err.message}`)
+    } finally {
+      setExportando(false)
+      setTimeout(() => setMensaje(''), 4000)
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(cargar, 0)
@@ -124,7 +140,14 @@ export default function Reportes() {
             </>
           )}
           {cargando && <span style={{ color: C.textMuted, fontSize: 12 }}>Actualizando…</span>}
+          <button onClick={exportarExcel} disabled={exportando || (filtro === 'rango' && (!desde || !hasta))}
+            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 9,
+              border: 'none', background: C.success, color: '#fff', fontWeight: 800, fontSize: 11, letterSpacing: 1,
+              cursor: exportando ? 'wait' : 'pointer', opacity: exportando ? 0.7 : 1 }}>
+            <FileSpreadsheet size={14} /> {exportando ? 'GENERANDO…' : `DESCARGAR EXCEL${filtro === 'hoy' ? ' DE HOY' : ''}`}
+          </button>
         </div>
+        {mensaje && <div style={{ fontSize: 12, fontWeight: 700, color: mensaje.startsWith('✅') ? C.success : C.danger }}>{mensaje}</div>}
 
         {error && <div style={{ background: C.dangerBg, color: C.danger, borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>{error}</div>}
 

@@ -22,7 +22,12 @@ const estadoSchema = z.object({
 router.patch('/:id', requireRole('admin', 'empleado', 'caja'), validateBody(estadoSchema), async (req, res) => {
   const id = Number(req.params.id)
   const { estado, mesero } = req.body
-  await prisma.mesa.update({ where: { id }, data: { estado, mesero } })
+  if (estado === 'libre') {
+    // Liberar una mesa solo se permite si no tiene consumo; si lo tiene, hay que cobrarla
+    const abiertos = await prisma.pedido.count({ where: { mesaId: id, estado: { not: 'cerrado' } } })
+    if (abiertos > 0) return res.status(400).json({ error: 'La mesa tiene productos pendientes de cobro' })
+  }
+  await prisma.mesa.update({ where: { id }, data: { estado, mesero: estado === 'libre' ? '' : mesero } })
   emitir('mesas:cambio', { mesaId: id })
   res.json({ ok: true })
 })

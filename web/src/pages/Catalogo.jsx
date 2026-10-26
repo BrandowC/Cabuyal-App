@@ -30,6 +30,24 @@ const EMOJI_CATEGORIA = {
 }
 const emojiCategoria = (c) => EMOJI_CATEGORIA[c] || '🍽️'
 
+// Categorías que se muestran agrupadas: arriba solo aparece "Bebidas"; al tocarla salen sus subcategorías
+const GRUPOS = {
+  Bebidas: {
+    emoji: '🥤',
+    subs: [
+      { cat: 'Gaseosas', etiqueta: 'Gaseosas' },
+      { cat: 'Jarras', etiqueta: 'Jarras' },
+      { cat: 'Limonadas', etiqueta: 'Limonadas' },
+      { cat: 'Malteadas', etiqueta: 'Malteadas' },
+      { cat: 'Cervezas', etiqueta: 'Cervezas' },
+      { cat: 'Bebidas', etiqueta: 'Sodas y agua' },
+    ],
+  },
+}
+const GRUPO_DE = Object.fromEntries(
+  Object.entries(GRUPOS).flatMap(([grupo, g]) => g.subs.map((s) => [s.cat, grupo])),
+)
+
 const PASOS = ['Carrito', 'Datos', 'Confirmar']
 const PASO_COLOR = (T) => [T.accent, T.accent3, T.accent2]
 
@@ -146,6 +164,7 @@ export default function Catalogo() {
   const voladorIdRef = useRef(0)
   const productosRef = useRef(null)
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
+  const [subFiltro, setSubFiltro] = useState('')
   const [verProducto, setVerProducto] = useState(null)
 
   useEffect(() => { api.getMenuPublico().then(setMenu) }, [])
@@ -157,10 +176,21 @@ export default function Catalogo() {
     return mapa
   }, [menu, categorias])
 
-  const categoriaActiva = categorias.includes(categoriaFiltro) ? categoriaFiltro : categorias[0] || ''
+  // Tarjetas de arriba: las categorías sueltas más los grupos (Bebidas), sin repetir y en el orden del menú
+  const tarjetas = useMemo(() => [...new Set(categorias.map((c) => GRUPO_DE[c] || c))], [categorias])
+  const subsDe = (t) => (GRUPOS[t] ? GRUPOS[t].subs.filter((s) => porCategoria.get(s.cat)?.length) : [])
+  const platosDe = (t) => (GRUPOS[t]
+    ? subsDe(t).flatMap((s) => porCategoria.get(s.cat))
+    : porCategoria.get(t) || [])
+
+  const categoriaActiva = tarjetas.includes(categoriaFiltro) ? categoriaFiltro : tarjetas[0] || ''
+  const subs = subsDe(categoriaActiva)
+  const subActiva = subs.some((s) => s.cat === subFiltro) ? subFiltro : ''
+  const emojiDe = (t) => GRUPOS[t]?.emoji || emojiCategoria(t)
 
   const elegirCategoria = (c) => {
     setCategoriaFiltro(c)
+    setSubFiltro('')
     // Lleva la vista a los productos para que se vea el cambio al instante (útil en celular)
     requestAnimationFrame(() => productosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
@@ -168,7 +198,7 @@ export default function Catalogo() {
   const cantidadTotal = carrito.reduce((s, x) => s + x.cantidad, 0)
   const total = carrito.reduce((s, x) => s + x.precio * x.cantidad, 0)
 
-  const productosVista = porCategoria.get(categoriaActiva) || []
+  const productosVista = subActiva ? porCategoria.get(subActiva) || [] : platosDe(categoriaActiva)
 
   const lanzarVolador = (origenEl) => {
     const cartRect = carritoBtnRef.current?.getBoundingClientRect()
@@ -313,6 +343,13 @@ export default function Catalogo() {
         .cabuyal-cat:hover .cabuyal-cat-icono, .cabuyal-cat.activa .cabuyal-cat-icono { transform: scale(1.15) rotate(-6deg); }
         .cabuyal-cat-nombre { font-size: 12px; font-weight: 800; line-height: 1.2; }
         .cabuyal-cat-cant { font-size: 10px; }
+        .cabuyal-subs { display: flex; flex-wrap: wrap; gap: 8px; margin: -2px 0 6px; animation: cabuyal-modal-in .25s ease; }
+        .cabuyal-sub { padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 800; cursor: pointer;
+          font-family: inherit; transition: transform .15s ease, background .2s ease; }
+        .cabuyal-sub:hover { transform: translateY(-2px); }
+        .cabuyal-sub:active { transform: scale(0.95); }
+        @keyframes cabuyal-card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+        .cabuyal-card { animation: cabuyal-card-in .4s ease backwards; }
         .cabuyal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 62px 14px; padding-top: 52px; }
         .cabuyal-header-inner { gap: 14px; }
         .cabuyal-logo { width: 70px; height: 70px; }
@@ -365,8 +402,9 @@ export default function Catalogo() {
           ¿QUÉ TE ANTOJAS HOY?
         </div>
         <div className="cabuyal-cats">
-          {categorias.map((c) => {
+          {tarjetas.map((c) => {
             const activa = categoriaActiva === c
+            const cantidad = platosDe(c).length
             return (
               <button key={c} className={`cabuyal-cat${activa ? ' activa' : ''}`} onClick={() => elegirCategoria(c)}
                 aria-pressed={activa}
@@ -374,10 +412,10 @@ export default function Catalogo() {
                   border: `1px solid ${activa ? T.btnDark : T.border}`,
                   boxShadow: activa ? '0 8px 18px rgba(15,76,117,0.35)' : '0 1px 4px rgba(11,36,54,0.06)' }}>
                 <span className="cabuyal-cat-icono"
-                  style={{ background: activa ? 'rgba(255,255,255,0.18)' : T.chip }}>{emojiCategoria(c)}</span>
+                  style={{ background: activa ? 'rgba(255,255,255,0.18)' : T.chip }}>{emojiDe(c)}</span>
                 <span className="cabuyal-cat-nombre">{c}</span>
                 <span className="cabuyal-cat-cant" style={{ color: activa ? 'rgba(255,255,255,0.8)' : T.textMuted }}>
-                  {porCategoria.get(c)?.length || 0} {porCategoria.get(c)?.length === 1 ? 'plato' : 'platos'}
+                  {cantidad} {cantidad === 1 ? 'plato' : 'platos'}
                 </span>
               </button>
             )
@@ -389,10 +427,28 @@ export default function Catalogo() {
       <div ref={productosRef} style={{ padding: '18px 16px 110px', maxWidth: 980, margin: '0 auto', scrollMarginTop: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.accentDark, marginBottom: 12,
           display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 20 }}>{emojiCategoria(categoriaActiva)}</span>
+          <span style={{ fontSize: 20 }}>{emojiDe(categoriaActiva)}</span>
           {categoriaActiva}
           <div style={{ flex: 1, height: 1, background: T.border }} />
         </div>
+
+        {/* Subcategorías del grupo (solo aparecen en Bebidas) */}
+        {subs.length > 0 && (
+          <div className="cabuyal-subs">
+            {[{ cat: '', etiqueta: 'Todas', n: platosDe(categoriaActiva).length },
+              ...subs.map((s) => ({ ...s, n: porCategoria.get(s.cat).length }))].map((s) => {
+              const activa = subActiva === s.cat
+              return (
+                <button key={s.cat || 'todas'} className={`cabuyal-sub${activa ? ' activa' : ''}`} onClick={() => setSubFiltro(s.cat)}
+                  aria-pressed={activa}
+                  style={{ background: activa ? T.accent2 : T.card, color: activa ? '#fff' : T.text,
+                    border: `1px solid ${activa ? T.accent2 : T.border}` }}>
+                  {s.etiqueta} <span style={{ opacity: 0.7, fontWeight: 600 }}>{s.n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="cabuyal-grid">
           {productosVista.map((p) => (
             <div key={p.id} className="cabuyal-card" onClick={() => setVerProducto(p)} style={{ background: T.card, border: `1px solid ${T.border}`,

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { X, Search, Plus, Minus, Trash2, CreditCard, Save, Pencil, Check, User, Banknote, Landmark, StickyNote } from 'lucide-react'
+import { X, Search, Plus, Minus, Trash2, CreditCard, Pencil, Check, User, Banknote, Landmark, StickyNote } from 'lucide-react'
 import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
@@ -28,7 +28,14 @@ const STATUS = {
   cuenta:  { bar: '#6A3FA0',     text: 'CUENTA',  card: '#B48CDB',    glow: 'rgba(106,63,160,0.3)' },
 }
 
-const CATS_BEBIDAS = ['Bebidas','Limonadas','Malteadas','Jarras','Gaseosas','Cervezas']
+// Dónde va cada producto: "nuevo" aún no se ha enviado a cocina
+const ESTADO_PEDIDO = {
+  nuevo:      { texto: 'SIN ENVIAR',  bg: C.goldBg,        color: C.goldDark },
+  pendiente:  { texto: 'EN COLA',     bg: C.terracottaBg,  color: C.terracotta },
+  preparando: { texto: 'PREPARANDO',  bg: C.infoBg,        color: C.info },
+  listo:      { texto: 'LISTO ✓',     bg: C.successBg,     color: C.success },
+}
+const CATS_BEBIDAS =['Bebidas','Limonadas','Malteadas','Jarras','Gaseosas','Cervezas']
 
 const FORMA_DIMS = {
   circular:     { width: 46, height: 46, borderRadius: '50%' },
@@ -58,6 +65,7 @@ export default function Mesas({ rol }) {
   const [nombreMesero, setNombreMesero] = useState('')
   const [errorMesero, setErrorMesero]   = useState('')
   const [abriendo, setAbriendo]         = useState(false)
+  const [aviso, setAviso]               = useState(null)
   const [editandoId, setEditandoId]   = useState(null)
   const [editCantidad, setEditCant]   = useState(1)
   const [notaItem, setNotaItem]       = useState('')
@@ -120,10 +128,19 @@ export default function Mesas({ rol }) {
     : menuCompleto.filter(p => p.categoria === catActiva)
   const estaAgotado = (p) => !p.disponible || (p.stock !== null && p.stock !== undefined && p.stock <= 0)
 
+  // Tocar el producto elegido otra vez lo quita; tocar otro lo cambia
   const seleccionarPlato = (p) => {
     if (estaAgotado(p)) return
-    setItemSel(p); setBusqueda(p.nombre); setMostrarDrop(false); setCantidad(1)
+    if (itemSel?.id === p.id) { quitarSeleccion(); return }
+    setItemSel(p); setBusqueda(p.nombre); setMostrarDrop(false); setCantidad(1); setNotaItem('')
   }
+  const quitarSeleccion = () => { setItemSel(null); setBusqueda(''); setMostrarDrop(false); setCantidad(1); setNotaItem('') }
+
+  // Al elegir un producto la vista baja al panel de cantidad y nota, aunque el catálogo sea largo
+  const selPanelRef = useRef(null)
+  useEffect(() => {
+    if (itemSel) selPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [itemSel])
 
   const agregarPedido = async () => {
     if (!itemSel || !mesaSel) return
@@ -159,11 +176,13 @@ export default function Mesas({ rol }) {
   const guardarEdicion = async (p) => {
     if (editCantidad < 1) { eliminarPedido(p.id); return }
     await api.updatePedido({ id: p.id, estado: 'cerrado' })
-    await api.addPedido({
+    const creado = await api.addPedido({
       mesa_id: mesaSel.id, menu_id: p.menuId ?? undefined, menu_dia_id: p.menuDiaId ?? undefined,
       nombre_plato: p.nombrePlato, categoria: p.categoria || '',
       precio: p.precio, cantidad: editCantidad, notas: p.notas || ''
     })
+    // El ítem reemplazado conserva su estado: si ya estaba en cocina, no vuelve a "sin enviar"
+    if (p.estado !== 'nuevo' && creado?.id) await api.updatePedido({ id: creado.id, estado: p.estado })
     const updated = await api.getPedidosByMesa(mesaSel.id)
     setPedidos(updated)
     setEditandoId(null)
@@ -213,8 +232,47 @@ export default function Mesas({ rol }) {
     setModal(false); cargar()
   }
 
+  const mostrarAviso = (tipo, texto) => {
+    setAviso({ tipo, texto })
+    setTimeout(() => setAviso(null), 4000)
+  }
+
+  const recargarPedidos = async () => setPedidos(await api.getPedidosByMesa(mesaSel.id))
+
+  const enviarCocina = async () => {
+    try {
+      const { enviados } = await api.enviarACocina(mesaSel.id)
+      await recargarPedidos()
+      mostrarAviso('ok', `✅ ${enviados} producto(s) enviado(s) a cocina`)
+      cargar()
+      return true
+    } catch (err) {
+      mostrarAviso('error', err.message || 'No se pudo enviar a cocina')
+      return false
+    }
+  }
+
+  const pedirCuenta = async () => {
+    if (sinEnviar > 0) {
+      if (!confirm(`Hay ${sinEnviar} producto(s) sin enviar a cocina. ¿Enviarlos ahora y pedir la cuenta?`)) return
+      if (!(await enviarCocina())) return
+    }
+    await cambiarEstado('cuenta')
+  }
+
+  // Mesa sin consumo: se libera sin generar venta (cobrar en cero no está permitido)
+  const cerrarSinConsumo = async () => {
+    if (!confirm(`¿Cerrar la mesa ${mesaSel.numero}? No tiene productos, no se genera ninguna venta.`)) return
+    try {
+      await api.updateMesa({ id: mesaSel.id, estado: 'libre', mesero: '' })
+      setModal(false); cargar()
+    } catch (err) {
+      mostrarAviso('error', err.message || 'No se pudo cerrar la mesa')
+    }
+  }
+
   const abrirPago = () => {
-    if (!puedeCerrarCuenta) return
+    if (!puedeCerrarCuenta || pedidos.length === 0) return
     setMetodoPago('efectivo'); setPropina(''); setNotasPago(''); setPagoModal(true)
   }
 
@@ -237,8 +295,12 @@ export default function Mesas({ rol }) {
   const total    = pedidos.reduce((s,p) => s + p.precio * p.cantidad, 0)
   const libres   = mesas.filter(m => m.estado === 'libre').length
   const ocupadas = mesas.filter(m => m.estado === 'ocupada').length
-  const totalComidas = pedidos.filter(p => !CATS_BEBIDAS.includes(p.categoria)).reduce((s,p)=>s+p.precio*p.cantidad,0)
-  const totalBebidas = pedidos.filter(p =>  CATS_BEBIDAS.includes(p.categoria)).reduce((s,p)=>s+p.precio*p.cantidad,0)
+  const itemsComidas = pedidos.filter(p => !CATS_BEBIDAS.includes(p.categoria))
+  const itemsBebidas = pedidos.filter(p =>  CATS_BEBIDAS.includes(p.categoria))
+  const sumarItems = (lista) => lista.reduce((s,p) => s + p.precio * p.cantidad, 0)
+  const totalComidas = sumarItems(itemsComidas)
+  const totalBebidas = sumarItems(itemsBebidas)
+  const sinEnviar = pedidos.filter(p => p.estado === 'nuevo').length
 
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text, fontFamily:'Segoe UI, sans-serif' }}>
@@ -551,8 +613,16 @@ export default function Mesas({ rol }) {
 
                   {/* Item seleccionado */}
                   {itemSel && (
-                    <div style={{ marginTop:10, background:C.goldBg, border:`1px solid ${C.gold}`,
-                      borderRadius:10, padding:'12px 16px', display:'flex', flexDirection:'column', gap:10 }}>
+                    <div ref={selPanelRef} style={{ marginTop:10, background:C.goldBg, border:`1px solid ${C.gold}`,
+                      borderRadius:10, padding:'12px 16px', display:'flex', flexDirection:'column', gap:10, scrollMarginBottom:12 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <span style={{ color:C.goldDark, fontSize:10, fontWeight:800, letterSpacing:2 }}>PRODUCTO ELEGIDO</span>
+                        <button onClick={quitarSeleccion}
+                          style={{ display:'flex', alignItems:'center', gap:4, background:'transparent', border:'none',
+                            color:C.terracotta, cursor:'pointer', fontSize:11, fontWeight:700 }}>
+                          <X size={13}/> QUITAR
+                        </button>
+                      </div>
                       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                         <div style={{ width:48, height:48, borderRadius:9, flexShrink:0,
                           background: itemSel.imagenUrl ? `center/cover no-repeat url(${itemSel.imagenUrl})` : `linear-gradient(145deg, ${C.gold}, ${C.goldDark})` }} />
@@ -673,7 +743,15 @@ export default function Mesas({ rol }) {
                             <div style={{ width:38, height:38, borderRadius:7, flexShrink:0,
                               background: fotoPlato ? `center/cover no-repeat url(${fotoPlato})` : C.goldBg }} />
                             <div style={{ flex:1 }}>
-                              <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{p.nombrePlato}</div>
+                              <div style={{ color:C.text, fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:7, flexWrap:'wrap' }}>
+                                {p.nombrePlato}
+                                {ESTADO_PEDIDO[p.estado] && (
+                                  <span style={{ fontSize:9, fontWeight:800, letterSpacing:1, padding:'2px 7px', borderRadius:20,
+                                    background:ESTADO_PEDIDO[p.estado].bg, color:ESTADO_PEDIDO[p.estado].color }}>
+                                    {ESTADO_PEDIDO[p.estado].texto}
+                                  </span>
+                                )}
+                              </div>
                               <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
                                 x{p.cantidad} —{' '}
                                 <span style={{ color:C.goldDark, fontWeight:700 }}>
@@ -706,26 +784,40 @@ export default function Mesas({ rol }) {
               </div>
 
               {/* DERECHA */}
-              <div className="cabuyal-mesa-modal-right" style={{ width:280, padding:24, display:'flex',
-                flexDirection:'column', gap:14, background:C.surfaceAlt, flexShrink:0 }}>
-                <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
-                  letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
+              <div className="cabuyal-mesa-modal-right" style={{ width:290, padding:24, display:'flex',
+                flexDirection:'column', gap:14, background:C.surfaceAlt, flexShrink:0, overflowY:'auto' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
+                    letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
+                  <button onClick={guardarMesa} title="Guardar mesa" aria-label="Guardar mesa"
+                    style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30,
+                      cursor:'pointer', fontSize:14, opacity:0.75, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    💾
+                  </button>
+                </div>
 
-                <div style={{ background:C.surface, borderRadius:10, padding:14, border:`1px solid ${C.border}` }}>
-                  {[
-                    { label:'🍽 Comidas', val: totalComidas },
-                    { label:'🥤 Bebidas', val: totalBebidas },
-                  ].map(x => (
-                    <div key={x.label} style={{ display:'flex', justifyContent:'space-between',
-                      padding:'7px 0', borderBottom:`1px solid ${C.border}` }}>
-                      <span style={{ color:C.textMuted, fontSize:12 }}>{x.label}</span>
-                      <span style={{ color: x.val > 0 ? C.goldDark : C.textFaint, fontSize:12,
-                        fontWeight: x.val > 0 ? 700 : 400 }}>
-                        {x.val > 0 ? `$${x.val.toLocaleString('es-CO')}` : '$0'}
+                {/* Resumen por grupo: cada plato con su precio y, arriba, el total del grupo */}
+                {[
+                  { label:'🍽 Comidas', items: itemsComidas, val: totalComidas },
+                  { label:'🥤 Bebidas', items: itemsBebidas, val: totalBebidas },
+                ].map(g => (
+                  <div key={g.label} style={{ background:C.surface, borderRadius:10, padding:'12px 14px', border:`1px solid ${C.border}` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                      paddingBottom: g.items.length ? 8 : 0, borderBottom: g.items.length ? `1px solid ${C.border}` : 'none' }}>
+                      <span style={{ color:C.text, fontSize:13, fontWeight:800 }}>{g.label}</span>
+                      <span style={{ color: g.val > 0 ? C.goldDark : C.textFaint, fontSize:14, fontWeight:800 }}>
+                        ${g.val.toLocaleString('es-CO')}
                       </span>
                     </div>
-                  ))}
-                </div>
+                    {g.items.map(p => (
+                      <div key={p.id} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0 0',
+                        fontSize:12, color:C.textMuted }}>
+                        <span style={{ minWidth:0 }}>{p.cantidad}× {p.nombrePlato}</span>
+                        <span style={{ whiteSpace:'nowrap', color:C.text }}>${(p.precio * p.cantidad).toLocaleString('es-CO')}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
 
                 <div style={{ background:C.header, borderRadius:10, padding:16,
                   textAlign:'center', position:'relative', overflow:'hidden' }}>
@@ -740,21 +832,29 @@ export default function Mesas({ rol }) {
 
                 <div style={{ flex:1 }}/>
 
+                {aviso && (
+                  <div style={{ background: aviso.tipo === 'ok' ? C.successBg : C.dangerBg,
+                    color: aviso.tipo === 'ok' ? C.success : C.danger, borderRadius:8, padding:'8px 10px',
+                    fontSize:12, fontWeight:700 }}>{aviso.texto}</div>
+                )}
+
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {mesaSel.estado === 'ocupada' && (<>
-                    <Btn color={C.surface} border={C.gold} textColor={C.goldDark}
-                      onClick={guardarMesa} icon={<Save size={13}/>}>
-                      GUARDAR MESA
-                    </Btn>
-                    <Btn color={C.gold} textColor={C.header} onClick={() => cambiarEstado('cuenta')}>
-                      PEDIR CUENTA
-                    </Btn>
-                  </>)}
-                  {mesaSel.estado === 'cuenta' && (<>
-                    <Btn color={C.surface} border={C.gold} textColor={C.goldDark}
-                      onClick={guardarMesa} icon={<Save size={13}/>}>
-                      GUARDAR MESA
-                    </Btn>
+                  {/* Enviar a cocina: manda comidas y bebidas que aún no se han enviado */}
+                  {mesaSel.estado === 'ocupada' && pedidos.length > 0 && (
+                    <button onClick={enviarCocina} disabled={sinEnviar === 0}
+                      style={{ width:'100%', padding:'12px 0', borderRadius:10, border:'none', fontWeight:800, fontSize:12,
+                        letterSpacing:1, cursor: sinEnviar === 0 ? 'default' : 'pointer',
+                        background: sinEnviar === 0 ? C.successBg : C.teal, color: sinEnviar === 0 ? C.success : '#fff',
+                        display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+                      {sinEnviar === 0 ? '✅ TODO ENVIADO A COCINA' : `👨‍🍳 ENVIAR A COCINA (${sinEnviar})`}
+                    </button>
+                  )}
+
+                  {mesaSel.estado === 'ocupada' && pedidos.length > 0 && (
+                    <Btn color={C.gold} textColor={C.header} onClick={pedirCuenta}>PEDIR CUENTA</Btn>
+                  )}
+
+                  {mesaSel.estado === 'cuenta' && pedidos.length > 0 && (<>
                     <Btn color={C.info} onClick={() => cambiarEstado('ocupada')}>
                       VOLVER A OCUPADA
                     </Btn>
@@ -764,6 +864,13 @@ export default function Mesas({ rol }) {
                       </Btn>
                     )}
                   </>)}
+
+                  {/* Sin productos no hay nada que cobrar: solo se puede cerrar la mesa sin venta */}
+                  {mesaSel.estado !== 'libre' && pedidos.length === 0 && (
+                    <Btn color={C.surface} border={C.terracotta} textColor={C.terracotta} onClick={cerrarSinConsumo}>
+                      CERRAR MESA (SIN CONSUMO)
+                    </Btn>
+                  )}
                 </div>
               </div>
             </div>

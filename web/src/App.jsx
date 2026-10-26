@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutGrid, UtensilsCrossed, BarChart2, Bike, LogOut, Users, CalendarDays, ChefHat, PieChart, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
+import { LayoutGrid, UtensilsCrossed, Bike, LogOut, Users, CalendarDays, ChefHat, PieChart, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
 import Cocina from './pages/Cocina'
 import Reportes from './pages/Reportes'
 import Mesas from './pages/Mesas'
 import Menu from './pages/Menu'
 import MenuDia from './pages/MenuDia'
-import Ventas from './pages/Ventas'
 import Domicilios from './pages/Domicilios'
 import Login from './pages/Login'
 import Catalogo from './pages/Catalogo'
@@ -22,7 +21,6 @@ const NAV = [
   { id: 'domicilios',   label: 'Domicilios',   icon: Bike,            roles: ['admin', 'caja'] },
   { id: 'menu',         label: 'Menú',         icon: UtensilsCrossed, roles: ['admin'] },
   { id: 'menu-dia',     label: 'Menú del día', icon: CalendarDays,    roles: ['admin', 'caja'] },
-  { id: 'ventas',       label: 'Ventas',       icon: BarChart2,       roles: ['admin', 'caja'] },
   { id: 'reportes',     label: 'Reportes',     icon: PieChart,        roles: ['admin', 'caja'] },
   { id: 'usuarios',     label: 'Usuarios',    icon: Users,           roles: ['admin'] },
 ]
@@ -281,9 +279,7 @@ function AppShell() {
           <Route path="menu-dia" element={
             <ProtectedRoute roles={['admin', 'caja']}><MenuDia /></ProtectedRoute>
           } />
-          <Route path="ventas" element={
-            <ProtectedRoute roles={['admin', 'caja']}><Ventas /></ProtectedRoute>
-          } />
+          <Route path="ventas" element={<Navigate to="/reportes" replace />} />
           <Route path="usuarios" element={
             <ProtectedRoute roles={['admin']}><Usuarios /></ProtectedRoute>
           } />

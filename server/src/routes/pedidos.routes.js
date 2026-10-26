@@ -54,22 +54,36 @@ router.post('/', requireRole('admin', 'empleado', 'caja'), validateBody(addSchem
     data: {
       mesaId: mesa_id, menuId: menu_id ?? null, menuDiaId: menu_dia_id ?? null,
       nombrePlato: nombre_plato, categoria, precio, cantidad, notas,
+      // Queda "nuevo" (solo en la mesa) hasta que el mesero pulse "Enviar a cocina"
+      estado: 'nuevo',
     },
   })
   const mesaActual = await prisma.mesa.findUnique({ where: { id: mesa_id } })
-  const mesa = await prisma.mesa.update({
+  await prisma.mesa.update({
     where: { id: mesa_id },
     data: { estado: 'ocupada', mesero: mesaActual?.mesero || req.user.nombre },
   })
 
   emitir('mesas:cambio', { mesaId: mesa_id })
-  imprimirComanda(mesa, [pedido])
+  res.status(201).json({ ok: true, id: pedido.id })
+})
 
-  res.status(201).json({ ok: true })
+// Envía a cocina todo lo que está "nuevo" en la mesa (comidas y bebidas)
+router.post('/enviar-cocina/:mesaId', requireRole('admin', 'empleado', 'caja'), async (req, res) => {
+  const mesaId = Number(req.params.mesaId)
+  const nuevos = await prisma.pedido.findMany({ where: { mesaId, estado: 'nuevo' }, orderBy: { fecha: 'asc' } })
+  if (nuevos.length === 0) return res.status(400).json({ error: 'No hay productos nuevos para enviar a cocina' })
+
+  await prisma.pedido.updateMany({ where: { id: { in: nuevos.map((p) => p.id) } }, data: { estado: 'pendiente' } })
+  const mesa = await prisma.mesa.findUnique({ where: { id: mesaId } })
+
+  emitir('mesas:cambio', { mesaId })
+  imprimirComanda(mesa, nuevos)
+  res.json({ ok: true, enviados: nuevos.length })
 })
 
 const updateSchema = z.object({
-  estado: z.enum(['pendiente', 'preparando', 'listo', 'cerrado']),
+  estado: z.enum(['nuevo', 'pendiente', 'preparando', 'listo', 'cerrado']),
 })
 
 router.patch('/:id', requireRole('admin', 'empleado', 'caja'), validateBody(updateSchema), async (req, res) => {
@@ -88,6 +102,12 @@ const cerrarSchema = z.object({
 router.post('/cerrar/:mesaId', requireRole('admin', 'caja'), validateBody(cerrarSchema), async (req, res) => {
   const mesaId = Number(req.params.mesaId)
   const { metodo_pago, propina, notas_pago } = req.body
+
+  // Una mesa sin productos no genera venta: se libera con "cerrar mesa" (PATCH /mesas/:id), nunca se cobra en cero
+  const abiertos = await prisma.pedido.count({ where: { mesaId, estado: { not: 'cerrado' } } })
+  if (abiertos === 0) {
+    return res.status(400).json({ error: 'La mesa no tiene productos, no se puede cobrar en cero. Ciérrala sin cobro.' })
+  }
 
   const resultado = await prisma.$transaction(async (tx) => {
     const mesaActual = await tx.mesa.findUnique({ where: { id: mesaId } })
