@@ -112,6 +112,9 @@ export default function Reportes() {
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: 'Segoe UI, sans-serif' }}>
       <style>{`
         .rep-grid4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+        .rep-lista { max-height: 200px; overflow-y: auto; padding-right: 6px; }
+        .rep-lista::-webkit-scrollbar { width: 6px; }
+        .rep-lista::-webkit-scrollbar-thumb { background: ${C.borderStrong}; border-radius: 6px; }
         .rep-grid2 { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px; align-items:start; }
         @media (max-width: 900px) { .rep-grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .rep-grid2 { grid-template-columns: 1fr; } }
       `}</style>
@@ -165,10 +168,12 @@ export default function Reportes() {
             <div className="rep-grid2">
               <Seccion icono={<Users size={14} />} titulo="VENTAS POR MESERO">
                 {datos.porMesero.length === 0 && <div style={{ color: C.textFaint, fontSize: 13 }}>Sin cuentas cerradas en este periodo</div>}
-                {datos.porMesero.map((m) => (
-                  <Barra key={m.mesero} etiqueta={m.mesero} sub={`${m.cuentas} cuenta(s)${m.propinas ? ` · propinas ${pesos(m.propinas)}` : ''}`}
-                    valor={m.total} max={maxMesero} color={C.teal} derecha={pesos(m.total)} />
-                ))}
+                <div className="rep-lista">
+                  {datos.porMesero.map((m) => (
+                    <Barra key={m.mesero} etiqueta={m.mesero} sub={`${m.cuentas} cuenta(s)${m.propinas ? ` · propinas ${pesos(m.propinas)}` : ''}`}
+                      valor={m.total} max={maxMesero} color={C.teal} derecha={pesos(m.total)} />
+                  ))}
+                </div>
               </Seccion>
 
               <Seccion icono={<UtensilsCrossed size={14} />} titulo="PLATOS MÁS VENDIDOS">
@@ -181,11 +186,18 @@ export default function Reportes() {
                   ))}
                 </div>
                 {platos.length === 0 && <div style={{ color: C.textFaint, fontSize: 13 }}>Sin ventas en este periodo</div>}
-                {platos.map((p, i) => (
-                  <Barra key={p.nombre} etiqueta={`${i + 1}. ${p.nombre}`} sub={ordenPlato === 'cantidad' ? pesos(p.ingresos) : `${p.cantidad} und`}
-                    valor={p[ordenPlato]} max={maxPlato} color={C.gold}
-                    derecha={ordenPlato === 'cantidad' ? `${p.cantidad} und` : pesos(p.ingresos)} />
-                ))}
+                <div className="rep-lista">
+                  {platos.map((p, i) => (
+                    <Barra key={p.nombre} etiqueta={`${i + 1}. ${p.nombre}`} sub={ordenPlato === 'cantidad' ? pesos(p.ingresos) : `${p.cantidad} und`}
+                      valor={p[ordenPlato]} max={maxPlato} color={C.gold}
+                      derecha={ordenPlato === 'cantidad' ? `${p.cantidad} und` : pesos(p.ingresos)} />
+                  ))}
+                </div>
+                {platos.length > 4 && (
+                  <div style={{ fontSize: 10, color: C.textFaint, textAlign: 'center', marginTop: 4 }}>
+                    Desliza para ver los {platos.length} platos ↓
+                  </div>
+                )}
               </Seccion>
             </div>
 

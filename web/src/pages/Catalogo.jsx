@@ -143,7 +143,111 @@ function Coverflow({ T }) {
   )
 }
 
+// Brasas que suben por la pantalla de bienvenida: posición, tamaño y ritmo fijos para que no cambien al renderizar
+const BRASAS = [
+  { x: 6, s: 5, d: 0, t: 9 }, { x: 14, s: 3, d: 2.5, t: 11 }, { x: 22, s: 6, d: 5, t: 10 }, { x: 31, s: 4, d: 1, t: 12 },
+  { x: 40, s: 3, d: 6.5, t: 9 }, { x: 49, s: 5, d: 3, t: 11 }, { x: 58, s: 4, d: 7.5, t: 10 }, { x: 66, s: 6, d: 0.5, t: 13 },
+  { x: 74, s: 3, d: 4, t: 9 }, { x: 82, s: 5, d: 8, t: 11 }, { x: 90, s: 4, d: 2, t: 10 }, { x: 96, s: 3, d: 5.5, t: 12 },
+]
+
+// Pantalla de entrada del catálogo: poco texto, fondo en movimiento y un solo botón
+function Bienvenida({ onEntrar }) {
+  const [saliendo, setSaliendo] = useState(false)
+
+  useEffect(() => {
+    const previo = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previo }
+  }, [])
+
+  const entrar = () => {
+    setSaliendo(true)
+    setTimeout(onEntrar, 650)
+  }
+
+  return (
+    <div className={`cab-bienvenida${saliendo ? ' saliendo' : ''}`} role="dialog" aria-label="Bienvenida a El Cabuyal">
+      <style>{`
+        .cab-bienvenida { position: fixed; inset: 0; z-index: 500; overflow: hidden; display: flex; align-items: center;
+          justify-content: center; text-align: center; color: #F4EFE4; font-family: 'Segoe UI', sans-serif;
+          background: radial-gradient(ellipse at 50% 30%, #12707A 0%, #0B2436 55%, #050f17 100%);
+          transition: transform .65s cubic-bezier(.7,0,.3,1), opacity .65s ease; }
+        .cab-bienvenida.saliendo { transform: translateY(-100%); opacity: 0.6; }
+        .cab-fotos, .cab-foto, .cab-velo { position: absolute; inset: 0; }
+        .cab-foto { background-size: cover; background-position: center; opacity: 0;
+          animation: cab-foto 24s infinite; filter: saturate(1.15); }
+        .cab-velo { background: linear-gradient(180deg, rgba(5,15,23,.55) 0%, rgba(8,28,42,.78) 55%, rgba(5,15,23,.92) 100%); }
+        @keyframes cab-foto {
+          0% { opacity: 0; transform: scale(1.05); } 6% { opacity: 1; } 25% { opacity: 1; }
+          31% { opacity: 0; transform: scale(1.2); } 100% { opacity: 0; transform: scale(1.2); }
+        }
+        .cab-brasa { position: absolute; bottom: -12px; border-radius: 50%; opacity: 0;
+          background: radial-gradient(circle, #FFD98A 0%, #C9A84C 55%, rgba(201,168,76,0) 100%);
+          animation: cab-brasa linear infinite; }
+        @keyframes cab-brasa {
+          0% { transform: translateY(0) translateX(0); opacity: 0; } 12% { opacity: .9; }
+          100% { transform: translateY(-105vh) translateX(26px); opacity: 0; }
+        }
+        .cab-centro { position: relative; display: flex; flex-direction: column; align-items: center; padding: 24px; }
+        .cab-logo { width: 150px; height: 150px; border-radius: 50%; overflow: hidden; border: 3px solid #C9A84C;
+          background: #12707A; display: flex; align-items: center; justify-content: center;
+          animation: cab-pop .9s cubic-bezier(.2,1.3,.4,1) both, cab-brillo 3.2s ease-in-out 1s infinite; }
+        .cab-logo img { width: 180%; height: 180%; object-fit: cover; }
+        @keyframes cab-pop { from { opacity: 0; transform: scale(.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+        @keyframes cab-brillo { 0%,100% { box-shadow: 0 0 0 0 rgba(201,168,76,.45), 0 18px 40px rgba(0,0,0,.5); }
+          50% { box-shadow: 0 0 0 16px rgba(201,168,76,0), 0 18px 40px rgba(0,0,0,.5); } }
+        .cab-titulo { margin: 26px 0 0; font-size: 34px; font-weight: 800; letter-spacing: 9px; padding-left: 9px;
+          animation: cab-sube .8s ease .35s both; }
+        .cab-linea { width: 70px; height: 2px; margin: 14px 0 12px; background: linear-gradient(90deg, transparent, #C9A84C, transparent);
+          animation: cab-ancho .8s ease .6s both; }
+        .cab-frase { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; color: #E8D9AB; animation: cab-sube .8s ease .7s both; }
+        .cab-boton { position: relative; overflow: hidden; margin-top: 42px; border: none; cursor: pointer; font-family: inherit;
+          background: linear-gradient(135deg, #E3C56B, #C9A84C 55%, #A9863A); color: #0B2436; font-weight: 800; font-size: 15px;
+          letter-spacing: 5px; padding: 16px 44px 16px 49px; border-radius: 999px; display: flex; align-items: center; gap: 10px;
+          box-shadow: 0 12px 30px rgba(201,168,76,.35); animation: cab-sube .8s ease 1s both, cab-latido 2.4s ease-in-out 2s infinite;
+          transition: transform .2s ease; }
+        .cab-boton:hover { transform: translateY(-3px) scale(1.04); }
+        .cab-boton:active { transform: scale(.96); }
+        .cab-boton::after { content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;
+          background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); transform: skewX(-20deg);
+          animation: cab-brilla 3.4s ease-in-out 2.4s infinite; }
+        @keyframes cab-sube { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+        @keyframes cab-ancho { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: none; } }
+        @keyframes cab-latido { 0%,100% { box-shadow: 0 12px 30px rgba(201,168,76,.35); } 50% { box-shadow: 0 12px 44px rgba(201,168,76,.7); } }
+        @keyframes cab-brilla { 0% { left: -80%; } 35%,100% { left: 150%; } }
+        @media (max-width: 480px) { .cab-logo { width: 124px; height: 124px; } .cab-titulo { font-size: 27px; letter-spacing: 7px; } }
+        @media (prefers-reduced-motion: reduce) {
+          .cab-foto, .cab-brasa, .cab-logo, .cab-boton, .cab-boton::after { animation: none !important; }
+          .cab-foto:first-child { opacity: 1; }
+        }
+      `}</style>
+
+      <div className="cab-fotos" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="cab-foto" style={{ backgroundImage: `url(${SLIDES[i].url})`, animationDelay: `${i * 6}s` }} />
+        ))}
+        <div className="cab-velo" />
+        {BRASAS.map((b, i) => (
+          <span key={i} className="cab-brasa"
+            style={{ left: `${b.x}%`, width: b.s * 2, height: b.s * 2, animationDuration: `${b.t}s`, animationDelay: `${b.d}s` }} />
+        ))}
+      </div>
+
+      <div className="cab-centro">
+        <div className="cab-logo"><img src={logo} alt="El Cabuyal" /></div>
+        <h1 className="cab-titulo">EL CABUYAL</h1>
+        <div className="cab-linea" />
+        <div className="cab-frase">Sabor a la parrilla</div>
+        <button className="cab-boton" onClick={entrar} autoFocus>
+          INICIAR <ChevronRight size={18} strokeWidth={3} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Catalogo() {
+  const [bienvenida, setBienvenida] = useState(true)
   const [modo, setModo] = useState('dia')
   const T = modo === 'dia' ? DIA : NOCHE
 
@@ -551,6 +655,8 @@ export default function Catalogo() {
           </span>
         )}
       </button>
+
+      {bienvenida && <Bienvenida onEntrar={() => setBienvenida(false)} />}
 
       {/* WIZARD DE COMPRA — modal centrado */}
       {carritoAbierto && (

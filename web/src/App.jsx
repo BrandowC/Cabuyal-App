@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutGrid, UtensilsCrossed, Bike, LogOut, Users, CalendarDays, ChefHat, PieChart, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
+import { LayoutGrid, UtensilsCrossed, Bike, LogOut, Users, CalendarDays, ChefHat, PieChart, History, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
 import Cocina from './pages/Cocina'
 import Reportes from './pages/Reportes'
+import Historial from './pages/Historial'
 import Mesas from './pages/Mesas'
 import Menu from './pages/Menu'
 import MenuDia from './pages/MenuDia'
@@ -21,6 +22,7 @@ const NAV = [
   { id: 'domicilios',   label: 'Domicilios',   icon: Bike,            roles: ['admin', 'caja'] },
   { id: 'menu',         label: 'Menú',         icon: UtensilsCrossed, roles: ['admin'] },
   { id: 'menu-dia',     label: 'Menú del día', icon: CalendarDays,    roles: ['admin', 'caja'] },
+  { id: 'historial',    label: 'Historial',    icon: History,         roles: ['admin', 'caja'] },
   { id: 'reportes',     label: 'Reportes',     icon: PieChart,        roles: ['admin', 'caja'] },
   { id: 'usuarios',     label: 'Usuarios',    icon: Users,           roles: ['admin'] },
 ]
@@ -267,6 +269,9 @@ function AppShell() {
           <Route index element={<Navigate to={nav[0]?.id || 'mesas'} replace />} />
           <Route path="mesas" element={<Mesas rol={user.rol} />} />
           <Route path="cocina" element={<Cocina />} />
+          <Route path="historial" element={
+            <ProtectedRoute roles={['admin', 'caja']}><Historial /></ProtectedRoute>
+          } />
           <Route path="reportes" element={
             <ProtectedRoute roles={['admin', 'caja']}><Reportes /></ProtectedRoute>
           } />

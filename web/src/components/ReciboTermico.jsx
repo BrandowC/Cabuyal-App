@@ -17,7 +17,7 @@ function telefonoNegocio() {
 
 export default function ReciboTermico({
   onClose, subtitulo = 'Restaurante · Palermo', titulo, numero, fecha, filas = [], items = [],
-  subtotales = [], total, notasPago, pie = '¡Gracias por su visita!', barraExtra,
+  subtotales = [], propinasSugeridas = [], total, notasPago, pie = '¡Gracias por su visita!', barraExtra, copia = false,
 }) {
   const f = new Date(fecha)
   const tel = telefonoNegocio()
@@ -76,6 +76,10 @@ export default function ReciboTermico({
             <Linea />
 
             <div style={{ textAlign: 'center' }}>
+              {copia && (
+                <div style={{ display: 'inline-block', border: '2px solid #111', padding: '1px 12px', marginBottom: 4,
+                  fontWeight: 800, fontSize: 12, letterSpacing: 4 }}>COPIA</div>
+              )}
               <div style={{ fontWeight: 800, fontSize: 13, letterSpacing: 1 }}>{titulo} N° {String(numero).padStart(5, '0')}</div>
               <div style={{ fontSize: 12, marginTop: 2 }}>
                 {f.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -115,6 +119,20 @@ export default function ReciboTermico({
                 </div>
               ))}
             </div>
+
+            {propinasSugeridas.length > 0 && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dotted #999' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, marginBottom: 2 }}>
+                  TOTAL SI DESEA DEJAR PROPINA
+                </div>
+                {propinasSugeridas.map((p) => (
+                  <div key={p.pct} style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}>
+                    <span>{p.pct}% <span style={{ fontSize: 10 }}>(+{pesos(p.valor)})</span></span>
+                    <span style={{ fontWeight: 700 }}>{pesos(p.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8,
               padding: '8px 0', borderTop: '2px solid #111', borderBottom: '2px solid #111' }}>

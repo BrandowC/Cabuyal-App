@@ -2,13 +2,14 @@ import ReciboTermico from './ReciboTermico'
 
 const METODOS = { efectivo: 'Efectivo', tarjeta: 'Tarjeta', transferencia: 'Transferencia' }
 
-export default function ReciboDomicilio({ domicilio, onClose }) {
+export default function ReciboDomicilio({ domicilio, onClose, copia = false }) {
   if (!domicilio) return null
   const esRecoger = domicilio.tipoEntrega === 'recoger'
 
   return (
     <ReciboTermico
       onClose={onClose}
+      copia={copia}
       subtitulo={esRecoger ? 'Pedido para recoger' : 'Pedido a domicilio'}
       titulo="RECIBO"
       numero={domicilio.id}

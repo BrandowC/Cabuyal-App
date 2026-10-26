@@ -83,7 +83,8 @@ router.post('/enviar-cocina/:mesaId', requireRole('admin', 'empleado', 'caja'), 
 })
 
 const updateSchema = z.object({
-  estado: z.enum(['nuevo', 'pendiente', 'preparando', 'listo', 'cerrado']),
+  // "entregado": la cocina ya terminó y despachó el plato; sale de la pantalla de cocina pero sigue en la cuenta
+  estado: z.enum(['nuevo', 'pendiente', 'preparando', 'listo', 'entregado', 'cerrado']),
 })
 
 router.patch('/:id', requireRole('admin', 'empleado', 'caja'), validateBody(updateSchema), async (req, res) => {

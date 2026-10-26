@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChefHat, Bell, BellOff, Clock, Flame, Undo2, StickyNote } from 'lucide-react'
+import { ChefHat, Bell, BellOff, Clock, Flame, Undo2, StickyNote, Save } from 'lucide-react'
 import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
@@ -102,6 +102,18 @@ export default function Cocina() {
     }
   }
 
+  // "Guardar": la mesa ya está completa y despachada, así que sale de la pantalla (sigue en su cuenta)
+  const guardarComanda = async (comanda) => {
+    const ids = comanda.items.map((i) => i.id)
+    setPedidos((prev) => prev.filter((p) => !ids.includes(p.id)))
+    try {
+      await Promise.all(ids.map((id) => api.updatePedido({ id, estado: 'entregado' })))
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar la mesa')
+      cargar()
+    }
+  }
+
   const avanzar = (item) => {
     const i = FLUJO.indexOf(item.estado)
     if (i < FLUJO.length - 1) cambiarEstado(item, FLUJO[i + 1])
@@ -133,7 +145,10 @@ export default function Cocina() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: 'Segoe UI, sans-serif' }}>
       <style>{`
-        .cocina-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap:16px; align-items:start; }
+        .cocina-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap:12px; align-items:start; }
+        .cocina-card { display:grid; grid-template-columns: 112px minmax(0, 1fr); }
+        .cocina-card-items { display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:6px; align-content:start; }
+        @media (max-width: 560px) { .cocina-grid { grid-template-columns: 1fr; } .cocina-card { grid-template-columns: 1fr; } }
         @keyframes cocina-in { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
         .cocina-item { transition: background .15s ease, border-color .15s ease, transform .1s ease; }
         .cocina-item:active { transform: scale(0.985); }
@@ -192,53 +207,61 @@ export default function Cocina() {
               const min = Number.isFinite(cm.masVieja) ? minutosDesde(cm.masVieja, ahora) : 0
               const urgencia = cm.completa ? C.success : colorUrgencia(min)
               return (
-                <article key={cm.mesaId} style={{ background: C.surface, borderRadius: 14, overflow: 'hidden',
-                  border: `1px solid ${C.border}`, borderTop: `5px solid ${cm.completa ? C.success : C.header}`,
-                  boxShadow: '0 2px 10px rgba(11,36,54,0.08)', animation: 'cocina-in .25s ease',
-                  opacity: cm.completa ? 0.8 : 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '12px 14px', borderBottom: `1px solid ${C.border}` }}>
+                <article key={cm.mesaId} className="cocina-card" style={{ background: C.surface, borderRadius: 12, overflow: 'hidden',
+                  border: `1px solid ${C.border}`, borderLeft: `5px solid ${cm.completa ? C.success : C.header}`,
+                  boxShadow: '0 2px 8px rgba(11,36,54,0.08)', animation: 'cocina-in .25s ease' }}>
+                  {/* Cabecera lateral: mesa, mesero, tiempo y, si todo está listo, guardar */}
+                  <div className="cocina-card-head" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column',
+                    justifyContent: 'space-between', gap: 8, background: C.surfaceAlt }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: 20 }}>Mesa {cm.mesa}</div>
-                      {cm.mesero && <div style={{ fontSize: 11, color: C.textMuted }}>Atiende: {cm.mesero}</div>}
+                      <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Mesa {cm.mesa}</div>
+                      {cm.mesero && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{cm.mesero}</div>}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: urgencia, fontWeight: 800, fontSize: 14 }}>
-                      {cm.completa ? '✓ COMPLETA' : (<>
-                        {min >= 10 ? <Flame size={15} /> : <Clock size={15} />} {min} min
-                      </>)}
-                    </div>
+                    {cm.completa ? (
+                      <button onClick={() => guardarComanda(cm)} title="Mesa completa: guardar y quitar de la pantalla"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: 'none',
+                          background: C.success, color: '#fff', borderRadius: 9, padding: '8px 10px', cursor: 'pointer',
+                          fontWeight: 800, fontSize: 12, fontFamily: 'inherit' }}>
+                        <Save size={15} /> GUARDAR
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: urgencia, fontWeight: 800, fontSize: 13 }}>
+                        {min >= 10 ? <Flame size={14} /> : <Clock size={14} />} {min} min
+                      </div>
+                    )}
                   </div>
 
-                  <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div className="cocina-card-items" style={{ padding: 8 }}>
                     {cm.items.map((it) => {
                       const e = ESTILO[it.estado] || ESTILO.pendiente
                       return (
-                        <div key={it.id} style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                        <div key={it.id} style={{ display: 'flex', gap: 4, alignItems: 'stretch', minWidth: 0 }}>
                           <button className="cocina-item" onClick={() => avanzar(it)}
                             disabled={it.estado === 'listo'}
                             title={it.estado === 'listo' ? 'Plato listo' : 'Toca para pasar al siguiente color'}
                             style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: it.estado === 'listo' ? 'default' : 'pointer',
-                              background: e.bg, border: `2px solid ${e.color}`, borderRadius: 10, padding: '10px 12px',
-                              display: 'flex', alignItems: 'center', gap: 10, color: C.text, fontFamily: 'inherit' }}>
-                            <span style={{ background: e.color, color: '#fff', fontWeight: 800, borderRadius: 8, minWidth: 34,
-                              textAlign: 'center', padding: '4px 0', fontSize: 15 }}>{it.cantidad}×</span>
+                              background: e.bg, border: `2px solid ${e.color}`, borderRadius: 8, padding: '6px 8px',
+                              display: 'flex', alignItems: 'center', gap: 8, color: C.text, fontFamily: 'inherit' }}>
+                            <span style={{ background: e.color, color: '#fff', fontWeight: 800, borderRadius: 6, minWidth: 28,
+                              textAlign: 'center', padding: '2px 0', fontSize: 13 }}>{it.cantidad}×</span>
                             <span style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ display: 'block', fontWeight: 800, fontSize: 15, textDecoration: it.estado === 'listo' ? 'line-through' : 'none',
-                                opacity: it.estado === 'listo' ? 0.7 : 1 }}>{it.nombrePlato}</span>
+                              <span style={{ display: 'block', fontWeight: 800, fontSize: 13, lineHeight: 1.2,
+                                textDecoration: it.estado === 'listo' ? 'line-through' : 'none', opacity: it.estado === 'listo' ? 0.7 : 1 }}>
+                                {it.nombrePlato}
+                              </span>
                               {it.notas && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 4, background: '#fff',
-                                  color: C.goldDark, borderRadius: 6, padding: '2px 8px', fontSize: 12, fontWeight: 700 }}>
-                                  <StickyNote size={12} /> {it.notas}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3, background: '#fff',
+                                  color: C.goldDark, borderRadius: 5, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+                                  <StickyNote size={10} /> {it.notas}
                                 </span>
                               )}
                             </span>
-                            <span style={{ color: e.color, fontWeight: 800, fontSize: 10, letterSpacing: 1 }}>{e.texto}</span>
                           </button>
                           {it.estado !== 'pendiente' && (
                             <button onClick={() => devolver(it)} aria-label="Devolver un paso" title="Devolver al color anterior"
-                              style={{ width: 38, border: `1px solid ${C.border}`, background: C.surfaceAlt, borderRadius: 10,
+                              style={{ width: 30, border: `1px solid ${C.border}`, background: C.surfaceAlt, borderRadius: 8,
                                 cursor: 'pointer', color: C.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Undo2 size={16} />
+                              <Undo2 size={14} />
                             </button>
                           )}
                         </div>

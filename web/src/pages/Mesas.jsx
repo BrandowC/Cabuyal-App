@@ -33,6 +33,7 @@ const ESTADO_PEDIDO = {
   pendiente:  { texto: 'EN COLA',     bg: C.terracottaBg,  color: C.terracotta },
   preparando: { texto: 'PREPARANDO',  bg: C.infoBg,        color: C.info },
   listo:      { texto: 'LISTO ✓',     bg: C.successBg,     color: C.success },
+  entregado:  { texto: 'ENTREGADO',   bg: C.bgAlt,         color: C.textMuted },
 }
 const CATS_BEBIDAS =['Bebidas','Limonadas','Malteadas','Jarras','Gaseosas','Cervezas']
 
@@ -992,7 +993,7 @@ export default function Mesas({ rol }) {
         </div>
       )}
 
-      {recibo && <Recibo venta={recibo} onClose={() => setRecibo(null)} onCambio={setRecibo} />}
+      {recibo && <Recibo venta={recibo} onClose={() => setRecibo(null)} />}
     </div>
   )
 }

@@ -47,10 +47,9 @@ const api = {
   },
   getVentasStats: () => request('/ventas/stats'),
   getRecibo: (ventaId) => request(`/ventas/${ventaId}/recibo`),
-  setPropinaVenta: (ventaId, propina) => request(`/ventas/${ventaId}/propina`, { method: 'PATCH', body: JSON.stringify({ propina }) }),
-
   // Domicilios
   getDomicilios: (params = {}) => request(`/domicilios?${new URLSearchParams(params)}`),
+  getDomiciliosHistorial: (params = {}) => request(`/domicilios/historial?${new URLSearchParams(params)}`),
   addDomicilio: (data) => request('/domicilios', { method: 'POST', body: JSON.stringify(data) }),
   updateDomicilio: ({ id, estado }) => request(`/domicilios/${id}`, { method: 'PATCH', body: JSON.stringify({ estado }) }),
 

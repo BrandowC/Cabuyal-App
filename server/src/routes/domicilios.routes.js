@@ -4,6 +4,7 @@ const { prisma } = require('../db')
 const { requireAuth, requireRole } = require('../auth/middleware')
 const { validateBody } = require('../validate')
 const { emitir } = require('../realtime')
+const { rangoFecha } = require('../utils/fechas')
 
 const router = Router()
 
@@ -32,6 +33,16 @@ router.get('/', async (req, res) => {
         { estado: 'despachado', fecha: { gte: inicioHoy } },
       ],
     },
+    include: { items: true },
+    orderBy: { fecha: 'desc' },
+  })
+  res.json(domicilios)
+})
+
+// Historial de pedidos de cualquier estado (incluye despachados y cancelados) en un periodo
+router.get('/historial', async (req, res) => {
+  const domicilios = await prisma.domicilio.findMany({
+    where: { fecha: rangoFecha(req.query) },
     include: { items: true },
     orderBy: { fecha: 'desc' },
   })
