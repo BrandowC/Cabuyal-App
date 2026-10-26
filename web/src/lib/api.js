@@ -27,6 +27,7 @@ const api = {
 
   // Pedidos
   getPedidosByMesa: (mesaId) => request(`/pedidos/mesa/${mesaId}`),
+  getPedidosCocina: () => request('/pedidos/cocina'),
   addPedido: (data) => request('/pedidos', { method: 'POST', body: JSON.stringify(data) }),
   updatePedido: ({ id, estado }) => request(`/pedidos/${id}`, { method: 'PATCH', body: JSON.stringify({ estado }) }),
   cerrarMesa: (mesaId, { metodo_pago, propina, notas_pago } = {}) =>
@@ -68,6 +69,7 @@ const api = {
 
   // Reportes (descarga de archivo, no pasa por request())
   descargarReporteGanancias: (params) => descargarArchivo(`/reportes/ganancias?${new URLSearchParams(params)}`),
+  getReporteVentas: (params) => request(`/reportes/ventas-resumen?${new URLSearchParams(params)}`),
   descargarReporteStock: () => descargarArchivo('/reportes/stock'),
 }
 

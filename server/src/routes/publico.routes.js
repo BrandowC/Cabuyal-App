@@ -7,13 +7,30 @@ const { addSchema } = require('./domicilios.routes')
 
 const router = Router()
 
+// El menú público lo piden todos los clientes y casi nunca cambia: se guarda en memoria unos segundos
+// para que miles de visitas simultáneas no se traduzcan en miles de consultas a la base de datos.
+const MENU_TTL_MS = 30 * 1000
+let menuCache = { datos: null, expira: 0, pendiente: null }
+
+async function menuPublico() {
+  if (menuCache.datos && Date.now() < menuCache.expira) return menuCache.datos
+  // Si ya hay una consulta en curso, todos esperan esa misma en vez de lanzar una por visita
+  if (!menuCache.pendiente) {
+    menuCache.pendiente = prisma.plato.findMany({
+      where: { disponible: true },
+      select: { id: true, nombre: true, categoria: true, precio: true, descripcion: true, imagenUrl: true },
+      orderBy: [{ categoria: 'asc' }, { nombre: 'asc' }],
+    }).then((datos) => {
+      menuCache = { datos, expira: Date.now() + MENU_TTL_MS, pendiente: null }
+      return datos
+    }).catch((err) => { menuCache.pendiente = null; throw err })
+  }
+  return menuCache.pendiente
+}
+
 router.get('/menu', async (req, res) => {
-  const platos = await prisma.plato.findMany({
-    where: { disponible: true },
-    select: { id: true, nombre: true, categoria: true, precio: true, descripcion: true, imagenUrl: true },
-    orderBy: [{ categoria: 'asc' }, { nombre: 'asc' }],
-  })
-  res.json(platos)
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60')
+  res.json(await menuPublico())
 })
 
 const domicilioLimiter = rateLimit({

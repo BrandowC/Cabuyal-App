@@ -10,6 +10,24 @@ const router = Router()
 
 router.use(requireAuth)
 
+// Cola de la cocina: lo que falta preparar y lo que se acaba de dejar listo (últimos 30 min)
+router.get('/cocina', async (req, res) => {
+  const pedidos = await prisma.pedido.findMany({
+    where: {
+      OR: [
+        { estado: { in: ['pendiente', 'preparando'] } },
+        { estado: 'listo', fecha: { gte: new Date(Date.now() - 30 * 60 * 1000) } },
+      ],
+    },
+    include: { mesa: { select: { numero: true, mesero: true } } },
+    orderBy: { fecha: 'asc' },
+  })
+  res.json(pedidos.map((p) => ({
+    id: p.id, mesaId: p.mesaId, mesa: p.mesa.numero, mesero: p.mesa.mesero,
+    nombrePlato: p.nombrePlato, cantidad: p.cantidad, notas: p.notas, estado: p.estado, fecha: p.fecha,
+  })))
+})
+
 router.get('/mesa/:mesaId', async (req, res) => {
   const mesaId = Number(req.params.mesaId)
   const pedidos = await prisma.pedido.findMany({

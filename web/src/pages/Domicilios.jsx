@@ -4,6 +4,7 @@ import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
 import ReciboDomicilio from '../components/ReciboDomicilio'
+import { urlWhatsapp, mensajeConfirmacion } from '../lib/whatsapp'
 
 const COLUMNAS = [
   { key: 'pendiente', titulo: 'PENDIENTES', estados: ['pendiente', 'pendiente_confirmacion'] },
@@ -141,6 +142,13 @@ export default function Domicilios() {
   const cambiarEstado = async (id, estado) => {
     await api.updateDomicilio({ id, estado })
     cargar()
+  }
+
+  // Confirma el pedido y abre WhatsApp con el aviso listo para el cliente. La ventana se abre antes
+  // del await para que el navegador no la bloquee como ventana emergente.
+  const confirmarYAvisar = async (d) => {
+    if (d.telefono) window.open(urlWhatsapp(d.telefono, mensajeConfirmacion(d)), '_blank', 'noopener')
+    await cambiarEstado(d.id, 'pendiente')
   }
 
   const cancelar = async (id) => {
@@ -365,11 +373,12 @@ export default function Domicilios() {
                       {/* Acciones */}
                       <div style={{ padding:'10px 14px', display:'flex', gap:6 }}>
                         {d.estado === 'pendiente_confirmacion' && (
-                          <button onClick={() => cambiarEstado(d.id, 'pendiente')}
+                          <button onClick={() => confirmarYAvisar(d)}
+                            title="Confirma el pedido y abre WhatsApp para avisarle al cliente"
                             style={{ flex:1, padding:'9px 0', borderRadius:8, border:'none',
                               background:C.infoBg, color:C.info, fontWeight:700, fontSize:11,
                               cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
-                            <Check size={12}/> CONFIRMAR
+                            <Check size={12}/> CONFIRMAR Y AVISAR
                           </button>
                         )}
                         {d.estado !== 'despachado' ? (

@@ -16,6 +16,8 @@ services:
         fromDatabase:
           name: cabuyal-db
           property: connectionString
+      - key: TZ
+        value: America/Bogota
       - key: JWT_SECRET
         generateValue: true
       - key: RETENTION_MONTHS

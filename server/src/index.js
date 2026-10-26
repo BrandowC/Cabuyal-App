@@ -1,4 +1,6 @@
 require('dotenv').config()
+// Las fechas del negocio ("hoy", la hora de cada venta) son en hora de Colombia aunque el servidor esté en UTC
+process.env.TZ = process.env.TZ || 'America/Bogota'
 
 const http = require('http')
 const path = require('path')
@@ -6,6 +8,7 @@ const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
+const compression = require('compression')
 const cookieParser = require('cookie-parser')
 const cron = require('node-cron')
 
@@ -35,6 +38,7 @@ app.use(helmet({
     directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'img-src': ["'self'", 'data:', 'https:'] },
   },
 }))
+app.use(compression())
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }))
 app.use(express.json())
 app.use(cookieParser())

@@ -53,6 +53,11 @@ export default function Mesas({ rol }) {
   const [cantidadSel, setCantidad]    = useState(1)
   const [itemSel, setItemSel]         = useState(null)
   const [mostrarDrop, setMostrarDrop] = useState(false)
+  const [catFiltro, setCatFiltro]     = useState('')
+  const [mesaPorAbrir, setMesaPorAbrir] = useState(null)
+  const [nombreMesero, setNombreMesero] = useState('')
+  const [errorMesero, setErrorMesero]   = useState('')
+  const [abriendo, setAbriendo]         = useState(false)
   const [editandoId, setEditandoId]   = useState(null)
   const [editCantidad, setEditCant]   = useState(1)
   const [notaItem, setNotaItem]       = useState('')
@@ -106,6 +111,20 @@ export default function Mesas({ rol }) {
     setMostrarDrop(found.length > 0)
   }, [busqueda, menuCompleto, itemSel])
 
+  // Catálogo visible para el mesero: por categoría, o filtrado por lo que escriba en el buscador
+  const catsCarta = [...new Set(menuCompleto.map(p => p.categoria))]
+  const catActiva = catsCarta.includes(catFiltro) ? catFiltro : catsCarta[0] || ''
+  const textoBusqueda = busqueda.trim().toLowerCase()
+  const platosCatalogo = textoBusqueda && !itemSel
+    ? menuCompleto.filter(p => p.nombre.toLowerCase().includes(textoBusqueda) || p.categoria.toLowerCase().includes(textoBusqueda))
+    : menuCompleto.filter(p => p.categoria === catActiva)
+  const estaAgotado = (p) => !p.disponible || (p.stock !== null && p.stock !== undefined && p.stock <= 0)
+
+  const seleccionarPlato = (p) => {
+    if (estaAgotado(p)) return
+    setItemSel(p); setBusqueda(p.nombre); setMostrarDrop(false); setCantidad(1)
+  }
+
   const agregarPedido = async () => {
     if (!itemSel || !mesaSel) return
     const esDia = origen === 'dia'
@@ -156,6 +175,31 @@ export default function Mesas({ rol }) {
     const p = await api.getPedidosByMesa(mesa.id)
     setPedidos(p)
     setModal(true)
+  }
+
+  // Una mesa libre no se abre directo: primero se pide quién la atiende, para saber al cobrar quién fue el mesero
+  const pedirMesero = (mesa) => {
+    let recordado = ''
+    try { recordado = localStorage.getItem('cabuyal_ultimo_mesero') || '' } catch { /* sin almacenamiento */ }
+    setNombreMesero(recordado); setErrorMesero(''); setMesaPorAbrir(mesa)
+  }
+
+  const confirmarApertura = async () => {
+    const nombre = nombreMesero.trim().replace(/\s+/g, ' ')
+    if (nombre.length < 2) { setErrorMesero('Escribe el nombre de quien atiende la mesa'); return }
+    setAbriendo(true)
+    try {
+      await api.updateMesa({ id: mesaPorAbrir.id, estado: 'ocupada', mesero: nombre })
+      try { localStorage.setItem('cabuyal_ultimo_mesero', nombre) } catch { /* sin almacenamiento */ }
+      const mesa = { ...mesaPorAbrir, estado: 'ocupada', mesero: nombre }
+      setMesaPorAbrir(null)
+      await abrirMesa(mesa)
+      cargar()
+    } catch (err) {
+      setErrorMesero(err.message || 'No se pudo abrir la mesa. Intenta de nuevo.')
+    } finally {
+      setAbriendo(false)
+    }
   }
 
   const cambiarEstado = async (estado) => {
@@ -254,7 +298,7 @@ export default function Mesas({ rol }) {
                 const dims = formaDe(m.forma)
                 const ocupada = m.estado === 'ocupada'
                 return (
-                  <button key={num} className="mesa-tile" onClick={() => abrirMesa(m)}
+                  <button key={num} className="mesa-tile" onClick={() => (m.estado === 'libre' ? pedirMesero(m) : abrirMesa(m))}
                     style={{ background:C.surface,
                       border:`1px solid ${st.card}`, borderRadius:12, padding:'12px 6px 0',
                       cursor:'pointer', overflow:'visible', transition:'transform 0.18s, box-shadow 0.18s',
@@ -364,6 +408,7 @@ export default function Mesas({ rol }) {
                   </div>
 
                   {origen === 'carta' ? (
+                    <>
                     <div style={{ position:'relative' }}>
                       <div style={{ display:'flex', alignItems:'center', background:C.surfaceAlt,
                         border:`1px solid ${C.border}`, borderRadius:10, padding:'0 14px' }}>
@@ -417,6 +462,65 @@ export default function Mesas({ rol }) {
                         </div>
                       )}
                     </div>
+
+                    {/* Catálogo: categorías + productos con foto, precio y disponibilidad */}
+                    {!textoBusqueda || itemSel ? (
+                      <div style={{ display:'flex', gap:6, overflowX:'auto', marginTop:10, paddingBottom:4 }}>
+                        {catsCarta.map(c => (
+                          <button key={c} onClick={() => { setCatFiltro(c); setItemSel(null); setBusqueda('') }}
+                            style={{ padding:'6px 12px', borderRadius:8, fontSize:11, fontWeight:700, whiteSpace:'nowrap',
+                              cursor:'pointer', flexShrink:0,
+                              background: catActiva === c ? C.header : 'transparent',
+                              color: catActiva === c ? '#fff' : C.textMuted,
+                              border:`1px solid ${catActiva === c ? C.header : C.border}` }}>
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(128px, 1fr))', gap:8,
+                      marginTop:10, maxHeight:330, overflowY:'auto', paddingRight:2 }}>
+                      {platosCatalogo.length === 0 && (
+                        <div style={{ gridColumn:'1 / -1', color:C.textFaint, fontSize:12, textAlign:'center', padding:'16px 0' }}>
+                          No hay productos con ese nombre
+                        </div>
+                      )}
+                      {platosCatalogo.map(p => {
+                        const agotado = estaAgotado(p)
+                        const pocas = !agotado && p.stock !== null && p.stock !== undefined && p.stock <= 5
+                        const elegido = itemSel?.id === p.id
+                        return (
+                          <button key={p.id} onClick={() => seleccionarPlato(p)} disabled={agotado}
+                            style={{ textAlign:'left', padding:0, borderRadius:10, overflow:'hidden', position:'relative',
+                              cursor: agotado ? 'not-allowed' : 'pointer',
+                              background: elegido ? C.goldBg : C.surface,
+                              border:`1px solid ${elegido ? C.gold : C.border}`,
+                              opacity: agotado ? 0.55 : 1 }}>
+                            <div style={{ height:64, filter: agotado ? 'grayscale(1)' : 'none',
+                              background: p.imagenUrl ? `center/cover no-repeat url(${p.imagenUrl})` : C.goldBg }} />
+                            {agotado && (
+                              <div style={{ position:'absolute', top:6, left:6, background:C.danger, color:'#fff',
+                                fontSize:9, fontWeight:800, letterSpacing:1, padding:'2px 6px', borderRadius:5 }}>
+                                NO HAY
+                              </div>
+                            )}
+                            {pocas && (
+                              <div style={{ position:'absolute', top:6, left:6, background:C.terracotta, color:'#fff',
+                                fontSize:9, fontWeight:800, padding:'2px 6px', borderRadius:5 }}>
+                                Quedan {p.stock}
+                              </div>
+                            )}
+                            <div style={{ padding:'7px 9px 9px' }}>
+                              <div style={{ color:C.text, fontSize:12, fontWeight:700, lineHeight:1.25 }}>{p.nombre}</div>
+                              <div style={{ color:C.goldDark, fontSize:12, fontWeight:800, marginTop:3 }}>
+                                ${p.precio.toLocaleString('es-CO')}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    </>
                   ) : (
                     menuDia.length === 0 ? (
                       <div style={{ color:C.textFaint, fontSize:12, textAlign:'center', padding:'18px 0',
@@ -637,9 +741,6 @@ export default function Mesas({ rol }) {
                 <div style={{ flex:1 }}/>
 
                 <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {mesaSel.estado === 'libre' && (
-                    <Btn color={C.success} onClick={() => cambiarEstado('ocupada')}>ABRIR MESA</Btn>
-                  )}
                   {mesaSel.estado === 'ocupada' && (<>
                     <Btn color={C.surface} border={C.gold} textColor={C.goldDark}
                       onClick={guardarMesa} icon={<Save size={13}/>}>
@@ -665,6 +766,48 @@ export default function Mesas({ rol }) {
                   </>)}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABRIR MESA: pide el nombre de quien la atiende */}
+      {mesaPorAbrir && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(10,15,20,0.55)', zIndex:80,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+          onClick={e => { if (e.target === e.currentTarget && !abriendo) setMesaPorAbrir(null) }}>
+          <div style={{ background:C.surface, width:'100%', maxWidth:380, borderRadius:16,
+            borderTop:`4px solid ${C.gold}`, padding:'22px 20px 20px', boxShadow:'0 24px 60px rgba(0,0,0,0.35)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+              <div style={{ fontSize:28 }}>🪑</div>
+              <div>
+                <div style={{ color:C.text, fontWeight:800, fontSize:17 }}>Abrir mesa {mesaPorAbrir.numero}</div>
+                <div style={{ color:C.textMuted, fontSize:12, marginTop:2 }}>¿Quién va a atender esta mesa?</div>
+              </div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, background:C.surfaceAlt,
+              border:`1px solid ${errorMesero ? C.danger : C.border}`, borderRadius:10, padding:'0 12px' }}>
+              <User size={14} color={C.goldDark}/>
+              <input autoFocus value={nombreMesero} maxLength={40}
+                onChange={e => { setNombreMesero(e.target.value.replace(/[^a-zA-ZÀ-ÿñÑ\s]/g, '')); setErrorMesero('') }}
+                onKeyDown={e => { if (e.key === 'Enter' && !abriendo) confirmarApertura() }}
+                placeholder="Nombre del mesero"
+                style={{ flex:1, background:'transparent', border:'none', outline:'none',
+                  color:C.text, fontSize:14, padding:'12px 0' }}/>
+            </div>
+            {errorMesero && <div style={{ color:C.danger, fontSize:11, marginTop:6 }}>{errorMesero}</div>}
+            <div style={{ display:'flex', gap:8, marginTop:16 }}>
+              <button onClick={() => setMesaPorAbrir(null)} disabled={abriendo}
+                style={{ flex:1, padding:'12px 0', borderRadius:10, border:`1px solid ${C.border}`,
+                  background:'transparent', color:C.textMuted, fontWeight:700, fontSize:12, cursor:'pointer' }}>
+                CANCELAR
+              </button>
+              <button onClick={confirmarApertura} disabled={abriendo}
+                style={{ flex:2, padding:'12px 0', borderRadius:10, border:'none', background:C.success,
+                  color:'#fff', fontWeight:800, fontSize:12, letterSpacing:1,
+                  cursor: abriendo ? 'not-allowed' : 'pointer', opacity: abriendo ? 0.7 : 1 }}>
+                {abriendo ? 'ABRIENDO…' : 'ABRIR MESA'}
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutGrid, UtensilsCrossed, BarChart2, Bike, LogOut, Users, CalendarDays, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
+import { LayoutGrid, UtensilsCrossed, BarChart2, Bike, LogOut, Users, CalendarDays, ChefHat, PieChart, Menu as MenuIcon, X as CloseIcon } from 'lucide-react'
+import Cocina from './pages/Cocina'
+import Reportes from './pages/Reportes'
 import Mesas from './pages/Mesas'
 import Menu from './pages/Menu'
 import MenuDia from './pages/MenuDia'
@@ -16,11 +18,13 @@ import { C } from './theme'
 
 const NAV = [
   { id: 'mesas',        label: 'Mesas',        icon: LayoutGrid,      roles: ['admin', 'empleado', 'caja'] },
+  { id: 'cocina',       label: 'Cocina',       icon: ChefHat,         roles: ['admin', 'empleado', 'caja'] },
   { id: 'domicilios',   label: 'Domicilios',   icon: Bike,            roles: ['admin', 'caja'] },
   { id: 'menu',         label: 'Menú',         icon: UtensilsCrossed, roles: ['admin'] },
   { id: 'menu-dia',     label: 'Menú del día', icon: CalendarDays,    roles: ['admin', 'caja'] },
   { id: 'ventas',       label: 'Ventas',       icon: BarChart2,       roles: ['admin', 'caja'] },
-  { id: 'usuarios',     label: 'Usuarios',     icon: Users,           roles: ['admin'] },
+  { id: 'reportes',     label: 'Reportes',     icon: PieChart,        roles: ['admin', 'caja'] },
+  { id: 'usuarios',     label: 'Usuarios',    icon: Users,           roles: ['admin'] },
 ]
 
 export default function App() {
@@ -264,6 +268,10 @@ function AppShell() {
         <Routes>
           <Route index element={<Navigate to={nav[0]?.id || 'mesas'} replace />} />
           <Route path="mesas" element={<Mesas rol={user.rol} />} />
+          <Route path="cocina" element={<Cocina />} />
+          <Route path="reportes" element={
+            <ProtectedRoute roles={['admin', 'caja']}><Reportes /></ProtectedRoute>
+          } />
           <Route path="domicilios" element={
             <ProtectedRoute roles={['admin', 'caja']}><Domicilios /></ProtectedRoute>
           } />

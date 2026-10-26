@@ -24,6 +24,12 @@ const NOCHE = {
   imgFrom: '#0d3138', imgTo: '#12707A',
 }
 
+const EMOJI_CATEGORIA = {
+  Parrilla: '🥩', Pollo: '🍗', Lasagna: '🍝', 'Rápidos': '🌭', Hamburguesas: '🍔', Adiciones: '🍟',
+  Salsas: '🥫', Bebidas: '🥤', Limonadas: '🍋', Malteadas: '🥛', Jarras: '🍹', Gaseosas: '🥤', Cervezas: '🍺',
+}
+const emojiCategoria = (c) => EMOJI_CATEGORIA[c] || '🍽️'
+
 const PASOS = ['Carrito', 'Datos', 'Confirmar']
 const PASO_COLOR = (T) => [T.accent, T.accent3, T.accent2]
 
@@ -138,20 +144,11 @@ export default function Catalogo() {
 
   const carritoBtnRef = useRef(null)
   const voladorIdRef = useRef(0)
-  const headerRef = useRef(null)
-  const chipRefs = useRef({})
-  const [headerH, setHeaderH] = useState(90)
+  const productosRef = useRef(null)
   const [categoriaFiltro, setCategoriaFiltro] = useState('')
   const [verProducto, setVerProducto] = useState(null)
 
   useEffect(() => { api.getMenuPublico().then(setMenu) }, [])
-
-  useEffect(() => {
-    const medir = () => { if (headerRef.current) setHeaderH(headerRef.current.offsetHeight) }
-    medir()
-    window.addEventListener('resize', medir)
-    return () => window.removeEventListener('resize', medir)
-  }, [])
 
   const categorias = useMemo(() => [...new Set(menu.map((p) => p.categoria))], [menu])
   const porCategoria = useMemo(() => {
@@ -162,9 +159,11 @@ export default function Catalogo() {
 
   const categoriaActiva = categorias.includes(categoriaFiltro) ? categoriaFiltro : categorias[0] || ''
 
-  useEffect(() => {
-    chipRefs.current[categoriaActiva]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-  }, [categoriaActiva])
+  const elegirCategoria = (c) => {
+    setCategoriaFiltro(c)
+    // Lleva la vista a los productos para que se vea el cambio al instante (útil en celular)
+    requestAnimationFrame(() => productosRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
 
   const cantidadTotal = carrito.reduce((s, x) => s + x.cantidad, 0)
   const total = carrito.reduce((s, x) => s + x.precio * x.cantidad, 0)
@@ -302,9 +301,18 @@ export default function Catalogo() {
         .cabuyal-card:active .cabuyal-pop { transform: scale(1.05); }
         html, body { overflow-x: hidden; }
         .cabuyal-add:active { transform: scale(0.94); }
-        .cabuyal-chip { transition: all .18s ease; }
-        .cabuyal-cat-nav { scrollbar-width: none; }
-        .cabuyal-cat-nav::-webkit-scrollbar { display: none; }
+        .cabuyal-cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; }
+        .cabuyal-cat { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px 10px;
+          border-radius: 16px; cursor: pointer; font-family: inherit; text-align: center;
+          transition: transform .2s cubic-bezier(.25,.85,.3,1), box-shadow .2s ease, background .2s ease; }
+        .cabuyal-cat:hover { transform: translateY(-3px); }
+        .cabuyal-cat:active { transform: scale(0.96); }
+        .cabuyal-cat.activa { transform: translateY(-3px) scale(1.03); }
+        .cabuyal-cat-icono { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center;
+          justify-content: center; font-size: 24px; transition: transform .25s ease; }
+        .cabuyal-cat:hover .cabuyal-cat-icono, .cabuyal-cat.activa .cabuyal-cat-icono { transform: scale(1.15) rotate(-6deg); }
+        .cabuyal-cat-nombre { font-size: 12px; font-weight: 800; line-height: 1.2; }
+        .cabuyal-cat-cant { font-size: 10px; }
         .cabuyal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 62px 14px; padding-top: 52px; }
         .cabuyal-header-inner { gap: 14px; }
         .cabuyal-logo { width: 70px; height: 70px; }
@@ -319,7 +327,7 @@ export default function Catalogo() {
       `}</style>
 
       {/* HEADER */}
-      <div ref={headerRef} style={{ background: T.header, backgroundImage: `linear-gradient(135deg, ${T.header}, ${T.headerAlt})`,
+      <div style={{ background: T.header, backgroundImage: `linear-gradient(135deg, ${T.header}, ${T.headerAlt})`,
         padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         position: 'sticky', top: 0, zIndex: 20, borderBottom: `3px solid ${T.accent}` }}>
         <div className="cabuyal-header-inner" style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
@@ -342,27 +350,6 @@ export default function Catalogo() {
         </button>
       </div>
 
-      {/* NAV DE CATEGORÍAS — pestañas limpias, un solo acento de color */}
-      <div style={{ position: 'sticky', top: headerH, background: T.bg, zIndex: 10, borderBottom: `1px solid ${T.border}`,
-        padding: '10px 16px', boxSizing: 'border-box' }}>
-        <div className="cabuyal-cat-nav" style={{ display: 'flex', gap: 6, overflowX: 'auto',
-          maxWidth: 980, margin: '0 auto' }}>
-          {categorias.map((c) => {
-            const activa = categoriaActiva === c
-            return (
-              <button key={c} ref={(el) => { chipRefs.current[c] = el }} className="cabuyal-chip"
-                onClick={() => setCategoriaFiltro(c)}
-                style={{ padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                  cursor: 'pointer', background: activa ? T.btnDark : 'transparent',
-                  color: activa ? '#fff' : T.textMuted, border: `1px solid ${activa ? T.btnDark : T.border}`,
-                  flexShrink: 0 }}>
-                {c}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
       {/* CARRUSEL COVERFLOW + DESCRIPCIÓN */}
       <div style={{ padding: '4px 16px 4px', maxWidth: 980, margin: '0 auto' }}>
         <Coverflow T={T} />
@@ -372,10 +359,37 @@ export default function Catalogo() {
         </div>
       </div>
 
+      {/* CATEGORÍAS — todas visibles a la vez, se ajustan al ancho de la pantalla */}
+      <div style={{ padding: '10px 16px 0', maxWidth: 980, margin: '0 auto' }}>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: T.textMuted, marginBottom: 10, textAlign: 'center' }}>
+          ¿QUÉ TE ANTOJAS HOY?
+        </div>
+        <div className="cabuyal-cats">
+          {categorias.map((c) => {
+            const activa = categoriaActiva === c
+            return (
+              <button key={c} className={`cabuyal-cat${activa ? ' activa' : ''}`} onClick={() => elegirCategoria(c)}
+                aria-pressed={activa}
+                style={{ background: activa ? T.btnDark : T.card, color: activa ? '#fff' : T.text,
+                  border: `1px solid ${activa ? T.btnDark : T.border}`,
+                  boxShadow: activa ? '0 8px 18px rgba(15,76,117,0.35)' : '0 1px 4px rgba(11,36,54,0.06)' }}>
+                <span className="cabuyal-cat-icono"
+                  style={{ background: activa ? 'rgba(255,255,255,0.18)' : T.chip }}>{emojiCategoria(c)}</span>
+                <span className="cabuyal-cat-nombre">{c}</span>
+                <span className="cabuyal-cat-cant" style={{ color: activa ? 'rgba(255,255,255,0.8)' : T.textMuted }}>
+                  {porCategoria.get(c)?.length || 0} {porCategoria.get(c)?.length === 1 ? 'plato' : 'platos'}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       {/* PRODUCTOS DE LA CATEGORÍA SELECCIONADA (sin navegar de página, se filtra aquí mismo) */}
-      <div style={{ padding: '10px 16px 110px', maxWidth: 980, margin: '0 auto' }}>
+      <div ref={productosRef} style={{ padding: '18px 16px 110px', maxWidth: 980, margin: '0 auto', scrollMarginTop: 12 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: T.accentDark, marginBottom: 12,
           display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 20 }}>{emojiCategoria(categoriaActiva)}</span>
           {categoriaActiva}
           <div style={{ flex: 1, height: 1, background: T.border }} />
         </div>
