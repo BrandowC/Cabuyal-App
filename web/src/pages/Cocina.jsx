@@ -4,13 +4,12 @@ import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
 
-// Cada plato es un botón: un toque cambia su color (rojo → amarillo → verde) y aparece 💾. Otro toque antes
-// de guardar deshace el cambio; 💾 lo confirma, y un plato en verde guardado sale de la pantalla.
-const FLUJO = ['pendiente', 'preparando', 'listo']
+// Cada plato es un botón: un toque cambia su color (blanco → amarillo → rojo) y aparece 💾. Otro toque antes
+// de guardar deshace el cambio; 💾 lo confirma, y un plato en rojo (listo) guardado sale de la pantalla.
 const ESTILO = {
-  pendiente:  { color: C.terracotta, bg: C.terracottaBg, texto: 'NUEVO' },
+  pendiente:  { color: '#8B94A0',    bg: '#FFFFFF',      texto: 'NUEVO' },
   preparando: { color: '#B8860B',    bg: '#FBF1CC',      texto: 'PREPARANDO' },
-  listo:      { color: C.success,    bg: C.successBg,    texto: 'LISTO' },
+  listo:      { color: C.terracotta, bg: C.terracottaBg, texto: 'LISTO' },
 }
 
 const sinTentativo = (prev, id) => { const copia = { ...prev }; delete copia[id]; return copia }
@@ -141,8 +140,6 @@ export default function Cocina() {
       .sort((a, b) => a.masVieja - b.masVieja || a.mesa - b.mesa)
   }, [pedidos])
 
-  const porHacer = pedidos.filter((p) => colorDe(p) !== 'listo').length
-  const conteo = (estado) => pedidos.filter((p) => colorDe(p) === estado).length
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: 'Segoe UI, sans-serif' }}>
@@ -162,20 +159,10 @@ export default function Cocina() {
           <ChefHat size={28} color={C.gold} />
           <div>
             <div style={{ color: C.headerText, fontWeight: 800, fontSize: 20, letterSpacing: 3 }}>COCINA</div>
-            <div style={{ color: C.headerTextMuted, fontSize: 11, letterSpacing: 1 }}>
-              {porHacer === 0 ? 'Sin pedidos en espera' : `${porHacer} plato(s) por hacer`} · toca un plato para cambiarle el color y pulsa 💾 para guardarlo
-            </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {FLUJO.map((e) => (
-            <span key={e} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.1)',
-              borderRadius: 20, padding: '4px 11px', color: C.headerText, fontSize: 11, fontWeight: 700 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: ESTILO[e].color }} />
-              {ESTILO[e].texto} {conteo(e)}
-            </span>
-          ))}
           <button onClick={() => setSonido((s) => !s)} aria-pressed={sonido}
             title="Suena en este aparato cuando llega un pedido nuevo"
             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 13px', borderRadius: 10,

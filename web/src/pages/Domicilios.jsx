@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { X, Search, Plus, Minus, Phone, MapPin, User, CheckCircle, XCircle, Bike, Globe, Check, Store, Truck, StickyNote, History, Receipt, ChevronDown, ChevronUp, Banknote, CreditCard, Landmark, Home } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { X, Plus, Minus, Phone, MapPin, User, CheckCircle, XCircle, Bike, Globe, Check, Store, Truck, StickyNote, History, Receipt, ChevronDown, ChevronUp, Banknote, CreditCard, Landmark, Home } from 'lucide-react'
 import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
 import ReciboDomicilio from '../components/ReciboDomicilio'
+import SelectorMenu from '../components/SelectorMenu'
 import { urlWhatsapp, mensajeConfirmacion } from '../lib/whatsapp'
 
 const COLUMNAS = [
@@ -61,9 +62,6 @@ export default function Domicilios() {
   const [metodoPago, setMetodoPago] = useState('efectivo')
   const [costoEnvio, setCostoEnvio] = useState('')
   const [items, setItems]           = useState([])
-  const [busqueda, setBusqueda]     = useState('')
-  const [resultados, setResultados] = useState([])
-  const [mostrarDrop, setMostrarDrop] = useState(false)
   const [itemSel, setItemSel]       = useState(null)
   const [cantidad, setCantidad]     = useState(1)
   const [notaItem, setNotaItem]     = useState('')
@@ -86,21 +84,16 @@ export default function Domicilios() {
     return () => socket.off('domicilios:cambio', onCambio)
   }, [verCancelados])
 
-  useEffect(() => {
-    if (busqueda.trim().length < 1) { setResultados([]); setMostrarDrop(false); return }
-    if (itemSel) return
-    const q = busqueda.toLowerCase()
-    const found = menuCompleto
-      .filter(p => p.disponible &&
-        (p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q)))
-      .slice(0, 8)
-    setResultados(found)
-    setMostrarDrop(found.length > 0)
-  }, [busqueda, menuCompleto, itemSel])
-
+  // El catálogo (SelectorMenu) avisa con null cuando se quita el producto elegido
   const seleccionar = (item) => {
-    setItemSel(item); setBusqueda(item.nombre); setMostrarDrop(false); setCantidad(1); setNotaItem('')
+    setItemSel(item); setCantidad(1); setNotaItem('')
   }
+
+  // Al elegir un producto la vista baja al panel de cantidad y nota
+  const panelItemRef = useRef(null)
+  useEffect(() => {
+    if (itemSel) panelItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [itemSel])
 
   const agregarItem = () => {
     if (!itemSel) return
@@ -109,7 +102,7 @@ export default function Domicilios() {
       if (exist) return prev.map(x => x === exist ? { ...x, cantidad: x.cantidad + cantidad } : x)
       return [...prev, { ...itemSel, cantidad, notas: notaItem.trim() }]
     })
-    setBusqueda(''); setItemSel(null); setCantidad(1); setNotaItem(''); setMostrarDrop(false)
+    setItemSel(null); setCantidad(1); setNotaItem('')
   }
 
   const editarCantidad = (idx, delta) => {
@@ -135,7 +128,7 @@ export default function Domicilios() {
     })
     setModal(false)
     setForm(FORM_VACIO); setTipoEntrega('domicilio'); setCostoEnvio(''); setMetodoPago('efectivo')
-    setItems([]); setBusqueda(''); setItemSel(null)
+    setItems([]); setItemSel(null)
     cargar()
   }
 
@@ -541,56 +534,12 @@ export default function Domicilios() {
                 <div>
                   <div style={{ color:C.goldDark, fontSize:11, fontWeight:800,
                     letterSpacing:2, marginBottom:10 }}>AGREGAR ÍTEMS</div>
-                  <div style={{ position:'relative' }}>
-                    <div style={{ display:'flex', alignItems:'center', background:C.bgAlt,
-                      border:`1px solid ${C.gold}`, borderRadius:8, padding:'0 12px' }}>
-                      <Search size={15} color={C.goldDark}/>
-                      <input value={busqueda}
-                        onChange={e => { setBusqueda(e.target.value); setItemSel(null) }}
-                        onFocus={() => resultados.length > 0 && !itemSel && setMostrarDrop(true)}
-                        placeholder="Buscar plato o bebida..."
-                        style={{ flex:1, background:'transparent', border:'none', outline:'none',
-                          color:C.text, fontSize:13, padding:'11px 10px' }}/>
-                      {busqueda && (
-                        <button onClick={() => { setBusqueda(''); setItemSel(null); setMostrarDrop(false) }}
-                          style={{ background:'transparent', border:'none', color:C.textFaint, cursor:'pointer' }}>
-                          <X size={14}/>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Dropdown */}
-                    {mostrarDrop && !itemSel && (
-                      <div style={{ position:'absolute', top:'100%', left:0, right:0,
-                        background:C.surface, border:`1px solid ${C.gold}`, borderRadius:8,
-                        zIndex:100, marginTop:4, maxHeight:260, overflowY:'auto',
-                        boxShadow:'0 8px 24px rgba(0,0,0,0.12)' }}>
-                        {resultados.map(r => (
-                          <button key={r.id}
-                            onMouseDown={e => { e.preventDefault(); seleccionar(r) }}
-                            style={{ width:'100%', background:'transparent', border:'none',
-                              borderBottom:`1px solid ${C.border}`, padding:'10px 14px',
-                              display:'flex', justifyContent:'space-between',
-                              alignItems:'center', cursor:'pointer', textAlign:'left' }}
-                            onMouseEnter={e => e.currentTarget.style.background=C.bgAlt}
-                            onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                            <div>
-                              <div style={{ color:C.text, fontSize:13 }}>{r.nombre}</div>
-                              <div style={{ color:C.textMuted, fontSize:11 }}>{r.categoria}</div>
-                            </div>
-                            <div style={{ color:C.goldDark, fontWeight:800, fontSize:13 }}>
-                              ${r.precio.toLocaleString('es-CO')}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <SelectorMenu menu={menuCompleto} elegido={itemSel} onElegir={seleccionar} />
 
                   {/* Item seleccionado */}
                   {itemSel && (
-                    <div style={{ marginTop:10, background:C.goldBg, border:`1px solid ${C.gold}`,
-                      borderRadius:8, padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+                    <div ref={panelItemRef} style={{ marginTop:10, background:C.goldBg, border:`1px solid ${C.gold}`,
+                      borderRadius:8, padding:'12px 14px', display:'flex', flexDirection:'column', gap:10, scrollMarginBottom:12 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                         <div style={{ flex:1 }}>
                           <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{itemSel.nombre}</div>
