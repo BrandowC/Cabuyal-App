@@ -202,9 +202,9 @@ function Bienvenida({ onEntrar }) {
           animation: cab-ancho .8s ease .6s both; }
         .cab-frase { font-size: 14px; letter-spacing: 4px; text-transform: uppercase; color: #E8D9AB; animation: cab-sube .8s ease .7s both; }
         .cab-boton { position: relative; overflow: hidden; margin-top: 42px; border: none; cursor: pointer; font-family: inherit;
-          background: linear-gradient(135deg, #E3C56B, #C9A84C 55%, #A9863A); color: #0B2436; font-weight: 800; font-size: 15px;
+          background: linear-gradient(135deg, #FF7A59, #E8553E 55%, #C23B2A); color: #fff; font-weight: 800; font-size: 15px;
           letter-spacing: 5px; padding: 16px 44px 16px 49px; border-radius: 999px; display: flex; align-items: center; gap: 10px;
-          box-shadow: 0 12px 30px rgba(201,168,76,.35); animation: cab-sube .8s ease 1s both, cab-latido 2.4s ease-in-out 2s infinite;
+          box-shadow: 0 12px 30px rgba(232,85,62,.4); animation: cab-sube .8s ease 1s both, cab-latido 2.4s ease-in-out 2s infinite;
           transition: transform .2s ease; }
         .cab-boton:hover { transform: translateY(-3px) scale(1.04); }
         .cab-boton:active { transform: scale(.96); }
@@ -213,7 +213,7 @@ function Bienvenida({ onEntrar }) {
           animation: cab-brilla 3.4s ease-in-out 2.4s infinite; }
         @keyframes cab-sube { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
         @keyframes cab-ancho { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: none; } }
-        @keyframes cab-latido { 0%,100% { box-shadow: 0 12px 30px rgba(201,168,76,.35); } 50% { box-shadow: 0 12px 44px rgba(201,168,76,.7); } }
+        @keyframes cab-latido { 0%,100% { box-shadow: 0 12px 30px rgba(232,85,62,.4); } 50% { box-shadow: 0 12px 44px rgba(232,85,62,.75); } }
         @keyframes cab-brilla { 0% { left: -80%; } 35%,100% { left: 150%; } }
         @media (max-width: 480px) { .cab-logo { width: 124px; height: 124px; } .cab-titulo { font-size: 27px; letter-spacing: 7px; } }
         @media (prefers-reduced-motion: reduce) {
@@ -239,7 +239,7 @@ function Bienvenida({ onEntrar }) {
         <div className="cab-linea" />
         <div className="cab-frase">Sabor a la parrilla</div>
         <button className="cab-boton" onClick={entrar} autoFocus>
-          INICIAR <ChevronRight size={18} strokeWidth={3} />
+          ENTRAR <ChevronRight size={18} strokeWidth={3} />
         </button>
       </div>
     </div>

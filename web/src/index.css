@@ -13,6 +13,13 @@ body {
   background: #F6F4EF;
 }
 
+/* En iPhone, Safari amplía la pantalla al tocar un campo de texto con letra menor a 16px y no la devuelve.
+   Con 16px en pantallas táctiles no hay zoom automático; manipulation evita además el zoom por doble toque. */
+@media (hover: none) and (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+  html { touch-action: manipulation; }
+}
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #C9A84C; border-radius: 3px; }
