@@ -10,13 +10,13 @@ const router = Router()
 
 router.use(requireAuth)
 
-// Cola de la cocina: lo que falta preparar y lo que se acaba de dejar listo (últimos 30 min)
+// Cola de la cocina: lo que falta preparar y lo que ya está listo (última hora, mientras la mesa siga abierta)
 router.get('/cocina', async (req, res) => {
   const pedidos = await prisma.pedido.findMany({
     where: {
       OR: [
         { estado: { in: ['pendiente', 'preparando'] } },
-        { estado: 'listo', fecha: { gte: new Date(Date.now() - 30 * 60 * 1000) } },
+        { estado: 'listo', fecha: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
       ],
     },
     include: { mesa: { select: { numero: true, mesero: true } } },

@@ -54,6 +54,16 @@ PRINTER_PATH=/dev/usb/lp0   # solo si PRINTER_TYPE=usb
 
 No requiere cambios de código — la comanda solo incluye platos de comida (excluye bebidas).
 
+## Impresora de recibos (caja)
+
+El recibo (`web/src/components/ReciboTermico.jsx`) ya sale con formato de ticket de 80 mm. Se imprime desde el navegador del computador donde está la impresora, así que funciona igual con la app en Render:
+
+1. Instala el driver de la impresora térmica en ese computador (Windows) y déjala como impresora predeterminada.
+2. En Chrome, al pulsar IMPRIMIR: tamaño de papel = el del rollo (80 mm), márgenes = ninguno, y desactiva "encabezados y pies de página".
+3. Para que imprima sin mostrar el diálogo cada vez, abre la app con un acceso directo de Chrome con la opción `--kiosk-printing`.
+
+La propina se elige en el recibo (2 %, 5 %, 8 %, 10 % o sin propina) y el total queda guardado en la venta.
+
 ## Retención de datos
 
 Cron diario (3:00 a.m.) borra pedidos/ventas/domicilios con más de `RETENTION_MONTHS` (8 por defecto) de antigüedad, generando antes un respaldo en Excel en `server/backups/`.

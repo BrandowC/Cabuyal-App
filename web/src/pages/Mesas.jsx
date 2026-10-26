@@ -11,7 +11,6 @@ const METODOS_PAGO = [
   { key: 'transferencia', label: 'Transferencia', icon: Landmark },
 ]
 
-const PROPINA_PORCENTAJES = [5, 8, 10]
 
 const ZONAS = [
   { nombre: 'CASA',         mesas: [1,2,3,4,5,6,7] },
@@ -71,7 +70,6 @@ export default function Mesas({ rol }) {
   const [notaItem, setNotaItem]       = useState('')
   const [pagoModal, setPagoModal]     = useState(false)
   const [metodoPago, setMetodoPago]   = useState('efectivo')
-  const [propina, setPropina]         = useState('')
   const [notasPago, setNotasPago]     = useState('')
   const [cerrando, setCerrando]       = useState(false)
   const [recibo, setRecibo]           = useState(null)
@@ -273,14 +271,14 @@ export default function Mesas({ rol }) {
 
   const abrirPago = () => {
     if (!puedeCerrarCuenta || pedidos.length === 0) return
-    setMetodoPago('efectivo'); setPropina(''); setNotasPago(''); setPagoModal(true)
+    setMetodoPago('efectivo'); setNotasPago(''); setPagoModal(true)
   }
 
   const confirmarPago = async () => {
     setCerrando(true)
     try {
       const res = await api.cerrarMesa(mesaSel.id, {
-        metodo_pago: metodoPago, propina: Number(propina) || 0, notas_pago: notasPago.trim(),
+        metodo_pago: metodoPago, propina: 0, notas_pago: notasPago.trim(),
       })
       const detalle = await api.getRecibo(res.ventaId)
       setPagoModal(false); setModal(false); setPedidos([])
@@ -785,7 +783,7 @@ export default function Mesas({ rol }) {
 
               {/* DERECHA */}
               <div className="cabuyal-mesa-modal-right" style={{ width:290, padding:24, display:'flex',
-                flexDirection:'column', gap:14, background:C.surfaceAlt, flexShrink:0, overflowY:'auto' }}>
+                flexDirection:'column', gap:12, background:C.surfaceAlt, flexShrink:0, overflow:'hidden' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
                     letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
@@ -797,11 +795,13 @@ export default function Mesas({ rol }) {
                 </div>
 
                 {/* Resumen por grupo: cada plato con su precio y, arriba, el total del grupo */}
+                {/* Esta zona hace scroll si hace falta; el total y los botones de abajo siempre se ven */}
+                <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column', gap:12, paddingRight:2 }}>
                 {[
                   { label:'🍽 Comidas', items: itemsComidas, val: totalComidas },
                   { label:'🥤 Bebidas', items: itemsBebidas, val: totalBebidas },
                 ].map(g => (
-                  <div key={g.label} style={{ background:C.surface, borderRadius:10, padding:'12px 14px', border:`1px solid ${C.border}` }}>
+                  <div key={g.label} style={{ background:C.surface, borderRadius:10, padding:'12px 14px', border:`1px solid ${C.border}`, flexShrink:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
                       paddingBottom: g.items.length ? 8 : 0, borderBottom: g.items.length ? `1px solid ${C.border}` : 'none' }}>
                       <span style={{ color:C.text, fontSize:13, fontWeight:800 }}>{g.label}</span>
@@ -809,36 +809,38 @@ export default function Mesas({ rol }) {
                         ${g.val.toLocaleString('es-CO')}
                       </span>
                     </div>
-                    {g.items.map(p => (
-                      <div key={p.id} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0 0',
-                        fontSize:12, color:C.textMuted }}>
-                        <span style={{ minWidth:0 }}>{p.cantidad}× {p.nombrePlato}</span>
-                        <span style={{ whiteSpace:'nowrap', color:C.text }}>${(p.precio * p.cantidad).toLocaleString('es-CO')}</span>
-                      </div>
-                    ))}
+                    {/* Más de 4 productos: la lista se desliza sin mover el resto del panel */}
+                    <div style={{ maxHeight:124, overflowY:'auto', paddingRight:2 }}>
+                      {g.items.map(p => (
+                        <div key={p.id} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'6px 0 0',
+                          fontSize:12, color:C.textMuted }}>
+                          <span style={{ minWidth:0 }}>{p.cantidad}× {p.nombrePlato}</span>
+                          <span style={{ whiteSpace:'nowrap', color:C.text }}>${(p.precio * p.cantidad).toLocaleString('es-CO')}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
+                </div>
 
-                <div style={{ background:C.header, borderRadius:10, padding:16,
-                  textAlign:'center', position:'relative', overflow:'hidden' }}>
-                  <div style={{ color:C.headerTextMuted, fontSize:9, letterSpacing:3, marginBottom:6 }}>TOTAL</div>
-                  <div style={{ color:C.gold, fontSize:28, fontWeight:800, letterSpacing:1 }}>
+                <div style={{ background:C.header, borderRadius:10, padding:'12px 16px',
+                  textAlign:'center', position:'relative', overflow:'hidden', flexShrink:0 }}>
+                  <div style={{ color:C.headerTextMuted, fontSize:9, letterSpacing:3, marginBottom:4 }}>TOTAL</div>
+                  <div style={{ color:C.gold, fontSize:26, fontWeight:800, letterSpacing:1 }}>
                     ${total.toLocaleString('es-CO')}
                   </div>
-                  <div style={{ color:C.headerTextMuted, fontSize:10, marginTop:6, letterSpacing:1 }}>
+                  <div style={{ color:C.headerTextMuted, fontSize:10, marginTop:4, letterSpacing:1 }}>
                     {pedidos.reduce((s,p) => s+p.cantidad, 0)} ítem(s)
                   </div>
                 </div>
 
-                <div style={{ flex:1 }}/>
-
                 {aviso && (
                   <div style={{ background: aviso.tipo === 'ok' ? C.successBg : C.dangerBg,
                     color: aviso.tipo === 'ok' ? C.success : C.danger, borderRadius:8, padding:'8px 10px',
-                    fontSize:12, fontWeight:700 }}>{aviso.texto}</div>
+                    fontSize:12, fontWeight:700, flexShrink:0 }}>{aviso.texto}</div>
                 )}
 
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
                   {/* Enviar a cocina: manda comidas y bebidas que aún no se han enviado */}
                   {mesaSel.estado === 'ocupada' && pedidos.length > 0 && (
                     <button onClick={enviarCocina} disabled={sinEnviar === 0}
@@ -954,36 +956,6 @@ export default function Mesas({ rol }) {
               </div>
 
               <div>
-                <div style={{ color:C.textMuted, fontSize:11, fontWeight:800, letterSpacing:1, marginBottom:8 }}>
-                  PROPINA (VOLUNTARIA)
-                </div>
-                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
-                  {PROPINA_PORCENTAJES.map(pct => {
-                    const valorPct = Math.round(total * pct / 100)
-                    const activo = Number(propina) === valorPct && propina !== ''
-                    return (
-                      <button key={pct} onClick={() => setPropina(String(valorPct))}
-                        style={{ flex:1, padding:'8px 0', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:800,
-                          background: activo ? C.goldBg : C.bgAlt, color: activo ? C.goldDark : C.textMuted,
-                          border:`1.5px solid ${activo ? C.gold : C.border}` }}>
-                        {pct}%
-                      </button>
-                    )
-                  })}
-                  <button onClick={() => setPropina('0')}
-                    style={{ flex:1, padding:'8px 0', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:800,
-                      background: propina === '0' ? C.goldBg : C.bgAlt, color: propina === '0' ? C.goldDark : C.textMuted,
-                      border:`1.5px solid ${propina === '0' ? C.gold : C.border}` }}>
-                    Sin propina
-                  </button>
-                </div>
-                <input type="number" value={propina} onChange={e => setPropina(e.target.value)}
-                  placeholder="$0 (o escribe un valor personalizado)"
-                  style={{ width:'100%', background:C.bgAlt, border:`1px solid ${C.border}`, borderRadius:8,
-                    color:C.text, fontSize:14, padding:'10px 12px', outline:'none', boxSizing:'border-box' }}/>
-              </div>
-
-              <div>
                 <div style={{ color:C.textMuted, fontSize:11, fontWeight:800, letterSpacing:1, marginBottom:8, display:'flex',
                   alignItems:'center', gap:6 }}>
                   <StickyNote size={12}/> NOTAS DE PAGO (SI LO DIVIDEN)
@@ -999,14 +971,12 @@ export default function Mesas({ rol }) {
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:C.headerTextMuted, marginBottom:4 }}>
                   <span>Subtotal</span><span>${total.toLocaleString('es-CO')}</span>
                 </div>
-                {Number(propina) > 0 && (
-                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:C.headerTextMuted, marginBottom:4 }}>
-                    <span>Propina</span><span>${Number(propina).toLocaleString('es-CO')}</span>
-                  </div>
-                )}
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:18, fontWeight:800,
                   color:C.gold, marginTop:6, paddingTop:6, borderTop:'1px solid #ffffff22' }}>
-                  <span>TOTAL</span><span>${(total + (Number(propina) || 0)).toLocaleString('es-CO')}</span>
+                  <span>TOTAL</span><span>${total.toLocaleString('es-CO')}</span>
+                </div>
+                <div style={{ color:C.headerTextMuted, fontSize:10, marginTop:6 }}>
+                  La propina se elige en el recibo, después de confirmar el pago.
                 </div>
               </div>
 
@@ -1022,7 +992,7 @@ export default function Mesas({ rol }) {
         </div>
       )}
 
-      {recibo && <Recibo venta={recibo} onClose={() => setRecibo(null)} />}
+      {recibo && <Recibo venta={recibo} onClose={() => setRecibo(null)} onCambio={setRecibo} />}
     </div>
   )
 }

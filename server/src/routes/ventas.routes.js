@@ -1,4 +1,6 @@
 const { Router } = require('express')
+const { z } = require('zod')
+const { validateBody } = require('../validate')
 const { prisma } = require('../db')
 const { requireAuth, requireRole } = require('../auth/middleware')
 const { rangoFecha } = require('../utils/fechas')
@@ -29,6 +31,23 @@ router.get('/:id/recibo', async (req, res) => {
     },
   })
   if (!venta) return res.status(404).json({ error: 'Recibo no encontrado' })
+  res.json(venta)
+})
+
+// La propina se define en el recibo, cuando el cliente decide: se recalcula el total de la venta
+const propinaSchema = z.object({ propina: z.number().nonnegative().max(100000000) })
+
+router.patch('/:id/propina', validateBody(propinaSchema), async (req, res) => {
+  const id = Number(req.params.id)
+  const actual = await prisma.venta.findUnique({ where: { id }, select: { subtotal: true } })
+  if (!actual) return res.status(404).json({ error: 'Venta no encontrada' })
+
+  const propina = Math.round(req.body.propina)
+  const venta = await prisma.venta.update({
+    where: { id },
+    data: { propina, total: actual.subtotal + propina },
+    include: { mesa: { select: { numero: true } }, pedidos: { orderBy: { fecha: 'asc' } } },
+  })
   res.json(venta)
 })
 

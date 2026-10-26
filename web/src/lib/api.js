@@ -47,6 +47,7 @@ const api = {
   },
   getVentasStats: () => request('/ventas/stats'),
   getRecibo: (ventaId) => request(`/ventas/${ventaId}/recibo`),
+  setPropinaVenta: (ventaId, propina) => request(`/ventas/${ventaId}/propina`, { method: 'PATCH', body: JSON.stringify({ propina }) }),
 
   // Domicilios
   getDomicilios: (params = {}) => request(`/domicilios?${new URLSearchParams(params)}`),
