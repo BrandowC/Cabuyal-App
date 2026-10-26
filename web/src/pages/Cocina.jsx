@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChefHat, Bell, BellOff, Clock, Flame, Undo2, StickyNote, Save } from 'lucide-react'
+import { ChefHat, Bell, BellOff, Clock, Flame, StickyNote } from 'lucide-react'
 import api from '../lib/api'
 import socket from '../lib/socket'
 import { C } from '../theme'
 
-// Cada plato es un botón: un toque lo avanza de color (rojo → amarillo → verde) y la flecha lo devuelve un paso.
+// Cada plato es un botón: un toque cambia su color (rojo → amarillo → verde) y aparece 💾. Otro toque antes
+// de guardar deshace el cambio; 💾 lo confirma, y un plato en verde guardado sale de la pantalla.
 const FLUJO = ['pendiente', 'preparando', 'listo']
 const ESTILO = {
   pendiente:  { color: C.terracotta, bg: C.terracottaBg, texto: 'NUEVO' },
   preparando: { color: '#B8860B',    bg: '#FBF1CC',      texto: 'PREPARANDO' },
   listo:      { color: C.success,    bg: C.successBg,    texto: 'LISTO' },
 }
+
+const sinTentativo = (prev, id) => { const copia = { ...prev }; delete copia[id]; return copia }
 
 const minutosDesde = (fecha, ahora) => Math.max(0, Math.floor((ahora - new Date(fecha).getTime()) / 60000))
 
@@ -56,16 +59,19 @@ export default function Cocina() {
   const [ahora, setAhora] = useState(() => Date.now())
   const [sonido, setSonido] = useState(true)
   const [error, setError] = useState('')
-  const pendientesPrevios = useRef(null)
+  // Cambios sin guardar: { [idPedido]: color elegido }. Solo se confirman con el botón 💾.
+  const [tentativos, setTentativos] = useState({})
+  const vistos = useRef(null)
   const sonidoRef = useRef(true)
   useEffect(() => { sonidoRef.current = sonido }, [sonido])
 
   const cargar = useCallback(async () => {
     try {
       const data = await api.getPedidosCocina()
-      const nuevos = data.filter((p) => p.estado === 'pendiente').length
-      if (pendientesPrevios.current !== null && nuevos > pendientesPrevios.current && sonidoRef.current) pitar()
-      pendientesPrevios.current = nuevos
+      // Suena cuando llega un plato que esta pantalla nunca había visto (lo que acaba de enviar un mesero)
+      if (vistos.current !== null && sonidoRef.current
+        && data.some((p) => p.estado === 'pendiente' && !vistos.current.has(p.id))) pitar()
+      vistos.current = new Set([...(vistos.current || []), ...data.map((p) => p.id)])
       setPedidos(data)
       setError('')
     } catch (err) {
@@ -91,36 +97,36 @@ export default function Cocina() {
     }
   }, [cargar])
 
-  const cambiarEstado = async (item, estado) => {
-    // Cambia el color al instante y confirma con el servidor
-    setPedidos((prev) => prev.map((p) => (p.id === item.id ? { ...p, estado } : p)))
+  // Color que se ve: el elegido sin guardar, o el que ya está guardado
+  const colorDe = (item) => tentativos[item.id] || item.estado
+
+  // Tocar un plato: si ya tenía un cambio sin guardar, lo deshace (vuelve al color anterior);
+  // si no, lo pasa al siguiente color (rojo → amarillo → verde). Al pasar a amarillo suena el aviso.
+  const tocar = (item) => {
+    if (tentativos[item.id]) {
+      setTentativos((prev) => sinTentativo(prev, item.id))
+      return
+    }
+    const siguiente = item.estado === 'pendiente' ? 'preparando' : item.estado === 'preparando' ? 'listo' : 'preparando'
+    setTentativos((prev) => ({ ...prev, [item.id]: siguiente }))
+    if (siguiente === 'preparando' && sonidoRef.current) pitar()
+  }
+
+  // 💾: confirma el color. Un plato en verde guardado se da por entregado y desaparece de la pantalla
+  // (sigue en la cuenta de la mesa).
+  const guardar = async (item) => {
+    const color = tentativos[item.id] || item.estado
+    const estado = color === 'listo' ? 'entregado' : color
+    setTentativos((prev) => sinTentativo(prev, item.id))
+    setPedidos((prev) => (estado === 'entregado'
+      ? prev.filter((p) => p.id !== item.id)
+      : prev.map((p) => (p.id === item.id ? { ...p, estado } : p))))
     try {
       await api.updatePedido({ id: item.id, estado })
     } catch (err) {
-      setError(err.message || 'No se pudo actualizar el pedido')
+      setError(err.message || 'No se pudo guardar el plato')
       cargar()
     }
-  }
-
-  // "Guardar": la mesa ya está completa y despachada, así que sale de la pantalla (sigue en su cuenta)
-  const guardarComanda = async (comanda) => {
-    const ids = comanda.items.map((i) => i.id)
-    setPedidos((prev) => prev.filter((p) => !ids.includes(p.id)))
-    try {
-      await Promise.all(ids.map((id) => api.updatePedido({ id, estado: 'entregado' })))
-    } catch (err) {
-      setError(err.message || 'No se pudo guardar la mesa')
-      cargar()
-    }
-  }
-
-  const avanzar = (item) => {
-    const i = FLUJO.indexOf(item.estado)
-    if (i < FLUJO.length - 1) cambiarEstado(item, FLUJO[i + 1])
-  }
-  const devolver = (item) => {
-    const i = FLUJO.indexOf(item.estado)
-    if (i > 0) cambiarEstado(item, FLUJO[i - 1])
   }
 
   // Una comanda por mesa; las que aún tienen algo por hacer van primero, las más viejas arriba
@@ -131,16 +137,12 @@ export default function Cocina() {
       porMesa.get(p.mesaId).items.push(p)
     })
     return [...porMesa.values()]
-      .map((c) => ({
-        ...c,
-        completa: c.items.every((i) => i.estado === 'listo'),
-        masVieja: Math.min(...c.items.filter((i) => i.estado !== 'listo').map((i) => new Date(i.fecha).getTime()), Infinity),
-      }))
-      .sort((a, b) => Number(a.completa) - Number(b.completa) || a.masVieja - b.masVieja || a.mesa - b.mesa)
+      .map((c) => ({ ...c, masVieja: Math.min(...c.items.map((i) => new Date(i.fecha).getTime())) }))
+      .sort((a, b) => a.masVieja - b.masVieja || a.mesa - b.mesa)
   }, [pedidos])
 
-  const porHacer = pedidos.filter((p) => p.estado !== 'listo').length
-  const conteo = (estado) => pedidos.filter((p) => p.estado === estado).length
+  const porHacer = pedidos.filter((p) => colorDe(p) !== 'listo').length
+  const conteo = (estado) => pedidos.filter((p) => colorDe(p) === estado).length
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', color: C.text, fontFamily: 'Segoe UI, sans-serif' }}>
@@ -161,7 +163,7 @@ export default function Cocina() {
           <div>
             <div style={{ color: C.headerText, fontWeight: 800, fontSize: 20, letterSpacing: 3 }}>COCINA</div>
             <div style={{ color: C.headerTextMuted, fontSize: 11, letterSpacing: 1 }}>
-              {porHacer === 0 ? 'Sin pedidos en espera' : `${porHacer} plato(s) por hacer`} · toca un plato para cambiarle el color
+              {porHacer === 0 ? 'Sin pedidos en espera' : `${porHacer} plato(s) por hacer`} · toca un plato para cambiarle el color y pulsa 💾 para guardarlo
             </div>
           </div>
         </div>
@@ -205,48 +207,41 @@ export default function Cocina() {
           <div className="cocina-grid">
             {comandas.map((cm) => {
               const min = Number.isFinite(cm.masVieja) ? minutosDesde(cm.masVieja, ahora) : 0
-              const urgencia = cm.completa ? C.success : colorUrgencia(min)
+              const urgencia = colorUrgencia(min)
               return (
                 <article key={cm.mesaId} className="cocina-card" style={{ background: C.surface, borderRadius: 12, overflow: 'hidden',
-                  border: `1px solid ${C.border}`, borderLeft: `5px solid ${cm.completa ? C.success : C.header}`,
+                  border: `1px solid ${C.border}`, borderLeft: `5px solid ${C.header}`,
                   boxShadow: '0 2px 8px rgba(11,36,54,0.08)', animation: 'cocina-in .25s ease' }}>
-                  {/* Cabecera lateral: mesa, mesero, tiempo y, si todo está listo, guardar */}
+                  {/* Cabecera lateral: mesa, mesero y tiempo de espera */}
                   <div className="cocina-card-head" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column',
                     justifyContent: 'space-between', gap: 8, background: C.surfaceAlt }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>Mesa {cm.mesa}</div>
                       {cm.mesero && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{cm.mesero}</div>}
                     </div>
-                    {cm.completa ? (
-                      <button onClick={() => guardarComanda(cm)} title="Mesa completa: guardar y quitar de la pantalla"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: 'none',
-                          background: C.success, color: '#fff', borderRadius: 9, padding: '8px 10px', cursor: 'pointer',
-                          fontWeight: 800, fontSize: 12, fontFamily: 'inherit' }}>
-                        <Save size={15} /> GUARDAR
-                      </button>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: urgencia, fontWeight: 800, fontSize: 13 }}>
-                        {min >= 10 ? <Flame size={14} /> : <Clock size={14} />} {min} min
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: urgencia, fontWeight: 800, fontSize: 13 }}>
+                      {min >= 10 ? <Flame size={14} /> : <Clock size={14} />} {min} min
+                    </div>
                   </div>
 
                   <div className="cocina-card-items" style={{ padding: 8 }}>
                     {cm.items.map((it) => {
-                      const e = ESTILO[it.estado] || ESTILO.pendiente
+                      const color = colorDe(it)
+                      const e = ESTILO[color] || ESTILO.pendiente
+                      // 💾 aparece mientras haya un cambio de color sin guardar (o un plato que ya estaba en verde)
+                      const porGuardar = Boolean(tentativos[it.id]) || it.estado === 'listo'
                       return (
                         <div key={it.id} style={{ display: 'flex', gap: 4, alignItems: 'stretch', minWidth: 0 }}>
-                          <button className="cocina-item" onClick={() => avanzar(it)}
-                            disabled={it.estado === 'listo'}
-                            title={it.estado === 'listo' ? 'Plato listo' : 'Toca para pasar al siguiente color'}
-                            style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: it.estado === 'listo' ? 'default' : 'pointer',
-                              background: e.bg, border: `2px solid ${e.color}`, borderRadius: 8, padding: '6px 8px',
+                          <button className="cocina-item" onClick={() => tocar(it)}
+                            title={tentativos[it.id] ? 'Toca otra vez para deshacer el cambio' : 'Toca para pasar al siguiente color'}
+                            style={{ flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
+                              background: e.bg, border: `2px ${tentativos[it.id] ? 'dashed' : 'solid'} ${e.color}`, borderRadius: 8, padding: '6px 8px',
                               display: 'flex', alignItems: 'center', gap: 8, color: C.text, fontFamily: 'inherit' }}>
                             <span style={{ background: e.color, color: '#fff', fontWeight: 800, borderRadius: 6, minWidth: 28,
                               textAlign: 'center', padding: '2px 0', fontSize: 13 }}>{it.cantidad}×</span>
                             <span style={{ flex: 1, minWidth: 0 }}>
                               <span style={{ display: 'block', fontWeight: 800, fontSize: 13, lineHeight: 1.2,
-                                textDecoration: it.estado === 'listo' ? 'line-through' : 'none', opacity: it.estado === 'listo' ? 0.7 : 1 }}>
+                                textDecoration: color === 'listo' ? 'line-through' : 'none', opacity: color === 'listo' ? 0.7 : 1 }}>
                                 {it.nombrePlato}
                               </span>
                               {it.notas && (
@@ -257,11 +252,11 @@ export default function Cocina() {
                               )}
                             </span>
                           </button>
-                          {it.estado !== 'pendiente' && (
-                            <button onClick={() => devolver(it)} aria-label="Devolver un paso" title="Devolver al color anterior"
-                              style={{ width: 30, border: `1px solid ${C.border}`, background: C.surfaceAlt, borderRadius: 8,
-                                cursor: 'pointer', color: C.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Undo2 size={14} />
+                          {porGuardar && (
+                            <button onClick={() => guardar(it)} aria-label="Guardar" title={color === 'listo' ? 'Guardar: el plato sale de la pantalla' : 'Guardar este color'}
+                              style={{ width: 36, border: `2px solid ${e.color}`, background: '#fff', borderRadius: 8, cursor: 'pointer',
+                                fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'cocina-in .2s ease' }}>
+                              💾
                             </button>
                           )}
                         </div>
