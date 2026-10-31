@@ -9,9 +9,22 @@ const router = Router()
 
 router.use(requireAuth)
 
+// "pedidoListo": la mesa tiene productos y la cocina ya terminó y despachó todos (ninguno nuevo,
+// en cola ni en preparación). Sirve para avisar al mesero que ya puede llevar el pedido.
+const ESTADOS_EN_PROCESO = ['nuevo', 'pendiente', 'preparando']
+
 router.get('/', async (req, res) => {
-  const mesas = await prisma.mesa.findMany({ orderBy: { numero: 'asc' } })
-  res.json(mesas)
+  const [mesas, conteos] = await Promise.all([
+    prisma.mesa.findMany({ orderBy: { numero: 'asc' } }),
+    prisma.pedido.groupBy({ by: ['mesaId', 'estado'], where: { estado: { not: 'cerrado' } }, _count: { _all: true } }),
+  ])
+  const abiertos = new Map()
+  const enProceso = new Map()
+  conteos.forEach(({ mesaId, estado, _count }) => {
+    abiertos.set(mesaId, (abiertos.get(mesaId) || 0) + _count._all)
+    if (ESTADOS_EN_PROCESO.includes(estado)) enProceso.set(mesaId, (enProceso.get(mesaId) || 0) + _count._all)
+  })
+  res.json(mesas.map((m) => ({ ...m, pedidoListo: (abiertos.get(m.id) || 0) > 0 && !enProceso.get(m.id) })))
 })
 
 const estadoSchema = z.object({

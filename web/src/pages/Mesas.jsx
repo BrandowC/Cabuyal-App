@@ -300,6 +300,9 @@ export default function Mesas({ rol }) {
   const totalComidas = sumarItems(itemsComidas)
   const totalBebidas = sumarItems(itemsBebidas)
   const sinEnviar = pedidos.filter(p => p.estado === 'nuevo').length
+  // La mesa abierta con sus datos al día (pedidoListo se actualiza solo cuando la cocina marca los platos)
+  const mesaViva = mesaSel ? mesas.find(m => m.id === mesaSel.id) : null
+  const [resumenAbierto, setResumenAbierto] = useState(false)
 
   return (
     <div style={{ background:C.bg, minHeight:'100vh', color:C.text, fontFamily:'Segoe UI, sans-serif' }}>
@@ -312,10 +315,35 @@ export default function Mesas({ rol }) {
           100% { box-shadow: 0 0 0 0 rgba(176,58,46,0); }
         }
         .mesa-pulso { animation: mesa-pulso-anim 1.8s ease-out infinite; }
+        @keyframes mesa-listo-anim { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+        .mesa-listo { animation: mesa-listo-anim 1.4s ease-in-out infinite; }
+        .mesa-res-toggle { display: none; }
         @media (max-width: 760px) {
           .cabuyal-zonas-grid { grid-template-columns: 1fr !important; }
-          .cabuyal-mesa-modal-row { flex-direction: column !important; overflow-y: auto !important; }
-          .cabuyal-mesa-modal-right { width: 100% !important; }
+          /* En celular el catálogo ocupa casi toda la pantalla y el resumen queda como una barra compacta abajo */
+          .cabuyal-mesa-modal-row { flex-direction: column !important; overflow: hidden !important; }
+          .cabuyal-mesa-modal-left { flex: 1 1 auto !important; min-height: 0 !important; border-right: none !important;
+            padding: 12px !important; gap: 12px !important; }
+          .cabuyal-mesa-modal-right { width: 100% !important; flex-shrink: 0 !important; padding: 8px 12px 12px !important;
+            gap: 8px !important; border-top: 1px solid ${C.border}; }
+          .mesa-modal-head { padding: 10px 14px !important; }
+          .mesa-modal-head-icono { display: none !important; }
+          .mesa-res-toggle { display: inline-flex !important; }
+          .mesa-res-grupos { display: none !important; }
+          .mesa-res-grupos.abierto { display: flex !important; max-height: 150px !important; flex: none !important; }
+          .mesa-total-box { display: flex !important; align-items: center !important; justify-content: space-between !important;
+            text-align: left !important; padding: 8px 14px !important; }
+          .mesa-total-label { margin: 0 !important; }
+          .mesa-total-monto { font-size: 21px !important; }
+          .mesa-total-items { display: none !important; }
+          .mesa-botones { flex-direction: row !important; }
+          .mesa-botones > * { flex: 1 1 0 !important; padding: 10px 4px !important; font-size: 11px !important;
+            line-height: 1.15 !important; letter-spacing: 0.5px !important; }
+          .mesa-cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; max-height: 46vh !important; }
+          .mesa-cat-img { height: 46px !important; }
+          .mesa-cat-nombre { font-size: 11px !important; }
+          .mesa-cat-precio { font-size: 11px !important; }
+          .mesa-cat-texto { padding: 5px 7px 7px !important; }
         }
       `}</style>
 
@@ -371,6 +399,14 @@ export default function Mesas({ rol }) {
                         background:st.bar,
                       }}/>
                     )}
+                    {/* La cocina ya terminó y despachó todo: el mesero puede llevar el pedido */}
+                    {ocupada && m.pedidoListo && (
+                      <span className="mesa-listo" title="Pedido listo para llevar a la mesa" style={{
+                        position:'absolute', top:-7, left:-7, zIndex:2, background:C.success, color:'#fff', fontSize:9,
+                        fontWeight:800, letterSpacing:0.5, padding:'3px 7px', borderRadius:20, boxShadow:'0 2px 8px rgba(30,142,90,0.55)',
+                        border:'2px solid #fff',
+                      }}>✓ LISTO</span>
+                    )}
                     <div style={{
                       ...dims,
                       background: m.imagenUrl ? `center/cover no-repeat url(${m.imagenUrl})` : `linear-gradient(145deg, ${st.card}, ${st.card}cc)`,
@@ -409,9 +445,9 @@ export default function Mesas({ rol }) {
 
             {/* Header modal */}
             <div style={{ background:C.header, borderBottom:`3px solid ${C.gold}`,
-              padding:'16px 22px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              padding:'16px 22px', display:'flex', justifyContent:'space-between', alignItems:'center' }} className="mesa-modal-head">
               <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:44, height:44, borderRadius:10, background:'#ffffff18',
+                <div className="mesa-modal-head-icono" style={{ width:44, height:44, borderRadius:10, background:'#ffffff18',
                   border:`1px solid ${C.gold}66`, display:'flex', alignItems:'center',
                   justifyContent:'center', fontSize:22 }}>🪑</div>
                 <div>
@@ -421,6 +457,11 @@ export default function Mesas({ rol }) {
                   <div style={{ color:C.headerTextMuted, fontSize:10, letterSpacing:2, marginTop:2, display:'flex', alignItems:'center', gap:6 }}>
                     <span>{(STATUS[mesaSel.estado]||STATUS.libre).text}</span>
                     {pedidos.length > 0 && <span>• {pedidos.length} ÍTEM(S)</span>}
+                    {mesaViva?.pedidoListo && (
+                      <span style={{ background:C.success, color:'#fff', borderRadius:20, padding:'2px 9px', fontWeight:800, letterSpacing:1 }}>
+                        ✓ PEDIDO LISTO
+                      </span>
+                    )}
                     {mesaSel.mesero && (
                       <span style={{ display:'flex', alignItems:'center', gap:3, color:C.gold }}>
                         • <User size={10}/> {mesaSel.mesero}
@@ -441,7 +482,7 @@ export default function Mesas({ rol }) {
             <div className="cabuyal-mesa-modal-row" style={{ display:'flex', flex:1, overflow:'hidden' }}>
 
               {/* IZQUIERDA */}
-              <div style={{ flex:1, minWidth:0, padding:26, display:'flex', flexDirection:'column',
+              <div className="cabuyal-mesa-modal-left" style={{ flex:1, minWidth:0, padding:26, display:'flex', flexDirection:'column',
                 gap:20, overflowY:'auto', borderRight:`1px solid ${C.border}` }}>
 
                 {/* Buscador */}
@@ -539,7 +580,7 @@ export default function Mesas({ rol }) {
                         ))}
                       </div>
                     ) : null}
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(128px, 1fr))', gap:8,
+                    <div className="mesa-cat-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(128px, 1fr))', gap:8,
                       marginTop:10, maxHeight:330, overflowY:'auto', paddingRight:2 }}>
                       {platosCatalogo.length === 0 && (
                         <div style={{ gridColumn:'1 / -1', color:C.textFaint, fontSize:12, textAlign:'center', padding:'16px 0' }}>
@@ -557,7 +598,7 @@ export default function Mesas({ rol }) {
                               background: elegido ? C.goldBg : C.surface,
                               border:`1px solid ${elegido ? C.gold : C.border}`,
                               opacity: agotado ? 0.55 : 1 }}>
-                            <div style={{ height:64, filter: agotado ? 'grayscale(1)' : 'none',
+                            <div className="mesa-cat-img" style={{ height:64, filter: agotado ? 'grayscale(1)' : 'none',
                               background: p.imagenUrl ? `center/cover no-repeat url(${p.imagenUrl})` : C.goldBg }} />
                             {agotado && (
                               <div style={{ position:'absolute', top:6, left:6, background:C.danger, color:'#fff',
@@ -571,9 +612,9 @@ export default function Mesas({ rol }) {
                                 Quedan {p.stock}
                               </div>
                             )}
-                            <div style={{ padding:'7px 9px 9px' }}>
-                              <div style={{ color:C.text, fontSize:12, fontWeight:700, lineHeight:1.25 }}>{p.nombre}</div>
-                              <div style={{ color:C.goldDark, fontSize:12, fontWeight:800, marginTop:3 }}>
+                            <div className="mesa-cat-texto" style={{ padding:'7px 9px 9px' }}>
+                              <div className="mesa-cat-nombre" style={{ color:C.text, fontSize:12, fontWeight:700, lineHeight:1.25 }}>{p.nombre}</div>
+                              <div className="mesa-cat-precio" style={{ color:C.goldDark, fontSize:12, fontWeight:800, marginTop:3 }}>
                                 ${p.precio.toLocaleString('es-CO')}
                               </div>
                             </div>
@@ -786,8 +827,16 @@ export default function Mesas({ rol }) {
               <div className="cabuyal-mesa-modal-right" style={{ width:290, padding:24, display:'flex',
                 flexDirection:'column', gap:12, background:C.surfaceAlt, flexShrink:0, overflow:'hidden' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
-                    letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <div style={{ color:C.textMuted, fontSize:10, fontWeight:800,
+                      letterSpacing:3, textTransform:'uppercase' }}>Resumen</div>
+                    {/* Solo en celular: muestra u oculta el detalle de comidas y bebidas */}
+                    <button className="mesa-res-toggle" onClick={() => setResumenAbierto(a => !a)}
+                      style={{ background:C.goldBg, border:'none', borderRadius:20, padding:'4px 10px', color:C.goldDark,
+                        fontSize:11, fontWeight:800, cursor:'pointer', alignItems:'center' }}>
+                      {resumenAbierto ? 'Ocultar detalle ▴' : 'Ver detalle ▾'}
+                    </button>
+                  </div>
                   <button onClick={guardarMesa} title="Guardar mesa" aria-label="Guardar mesa"
                     style={{ background:'transparent', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30,
                       cursor:'pointer', fontSize:14, opacity:0.75, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -797,7 +846,8 @@ export default function Mesas({ rol }) {
 
                 {/* Resumen por grupo: cada plato con su precio y, arriba, el total del grupo */}
                 {/* Esta zona hace scroll si hace falta; el total y los botones de abajo siempre se ven */}
-                <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column', gap:12, paddingRight:2 }}>
+                <div className={`mesa-res-grupos${resumenAbierto ? ' abierto' : ''}`}
+                  style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column', gap:12, paddingRight:2 }}>
                 {[
                   { label:'🍽 Comidas', items: itemsComidas, val: totalComidas },
                   { label:'🥤 Bebidas', items: itemsBebidas, val: totalBebidas },
@@ -824,13 +874,13 @@ export default function Mesas({ rol }) {
                 ))}
                 </div>
 
-                <div style={{ background:C.header, borderRadius:10, padding:'12px 16px',
+                <div className="mesa-total-box" style={{ background:C.header, borderRadius:10, padding:'12px 16px',
                   textAlign:'center', position:'relative', overflow:'hidden', flexShrink:0 }}>
-                  <div style={{ color:C.headerTextMuted, fontSize:9, letterSpacing:3, marginBottom:4 }}>TOTAL</div>
-                  <div style={{ color:C.gold, fontSize:26, fontWeight:800, letterSpacing:1 }}>
+                  <div className="mesa-total-label" style={{ color:C.headerTextMuted, fontSize:9, letterSpacing:3, marginBottom:4 }}>TOTAL</div>
+                  <div className="mesa-total-monto" style={{ color:C.gold, fontSize:26, fontWeight:800, letterSpacing:1 }}>
                     ${total.toLocaleString('es-CO')}
                   </div>
-                  <div style={{ color:C.headerTextMuted, fontSize:10, marginTop:4, letterSpacing:1 }}>
+                  <div className="mesa-total-items" style={{ color:C.headerTextMuted, fontSize:10, marginTop:4, letterSpacing:1 }}>
                     {pedidos.reduce((s,p) => s+p.cantidad, 0)} ítem(s)
                   </div>
                 </div>
@@ -841,7 +891,7 @@ export default function Mesas({ rol }) {
                     fontSize:12, fontWeight:700, flexShrink:0 }}>{aviso.texto}</div>
                 )}
 
-                <div style={{ display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
+                <div className="mesa-botones" style={{ display:'flex', flexDirection:'column', gap:8, flexShrink:0 }}>
                   {/* Enviar a cocina: manda comidas y bebidas que aún no se han enviado */}
                   {mesaSel.estado === 'ocupada' && pedidos.length > 0 && (
                     <button onClick={enviarCocina} disabled={sinEnviar === 0}
