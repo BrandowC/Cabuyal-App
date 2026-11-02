@@ -131,3 +131,16 @@ model DomicilioItem {
   cantidad    Int
   notas       String    @default("")
 }
+
+// Registro de cada vez que se pasó la cuenta de una mesa a otra (números de mesa, no llaves foráneas,
+// para que el historial se conserve aunque cambie la distribución).
+model CambioMesa {
+  id          Int      @id @default(autoincrement())
+  mesaOrigen  Int
+  mesaDestino Int
+  usuario     String   @default("")
+  productos   Int      @default(0)
+  fecha       DateTime @default(now())
+
+  @@index([fecha])
+}

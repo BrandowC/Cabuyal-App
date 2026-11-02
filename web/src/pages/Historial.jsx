@@ -208,6 +208,9 @@ export default function Historial() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><User size={11} /> {x.mesero || 'Sin asignar'}</span>
                       <span>{METODOS[x.metodoPago] || x.metodoPago}</span>
                       <span>{x.items} producto(s)</span>
+                      {x.vieneDeMesa && (
+                        <span style={{ color: C.info, fontWeight: 700 }}>🔁 pasó de la mesa {x.vieneDeMesa}</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

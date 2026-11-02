@@ -66,6 +66,10 @@ export default function Mesas({ rol }) {
   const [errorMesero, setErrorMesero]   = useState('')
   const [abriendo, setAbriendo]         = useState(false)
   const [aviso, setAviso]               = useState(null)
+  const [cambioAbierto, setCambioAbierto] = useState(false)
+  const [destinoNum, setDestinoNum]     = useState(null)
+  const [cambiando, setCambiando]       = useState(false)
+  const [errorCambio, setErrorCambio]   = useState('')
   const [editandoId, setEditandoId]   = useState(null)
   const [editCantidad, setEditCant]   = useState(1)
   const [notaItem, setNotaItem]       = useState('')
@@ -257,6 +261,28 @@ export default function Mesas({ rol }) {
       if (!(await enviarCocina())) return
     }
     await cambiarEstado('cuenta')
+  }
+
+  // El grupo se cambió de sitio: pasa toda la cuenta a una mesa libre y la mesa actual queda libre sin venta
+  const abrirCambioMesa = () => { setDestinoNum(null); setErrorCambio(''); setCambioAbierto(true) }
+
+  const confirmarCambioMesa = async () => {
+    const destino = mesas.find(m => m.numero === destinoNum)
+    if (!destino) return
+    setCambiando(true); setErrorCambio('')
+    try {
+      const origenNum = mesaSel.numero
+      const mesero = mesaSel.mesero
+      await api.cambiarMesa(mesaSel.id, destino.id)
+      setCambioAbierto(false)
+      await abrirMesa({ ...destino, estado: 'ocupada', mesero })
+      mostrarAviso('ok', `✅ Cuenta pasada de la mesa ${origenNum} a la mesa ${destino.numero}`)
+      cargar()
+    } catch (err) {
+      setErrorCambio(err.message || 'No se pudo cambiar de mesa')
+    } finally {
+      setCambiando(false)
+    }
   }
 
   // Mesa sin consumo: se libera sin generar venta (cobrar en cero no está permitido)
@@ -907,6 +933,10 @@ export default function Mesas({ rol }) {
                     <Btn color={C.gold} textColor={C.header} onClick={pedirCuenta}>PEDIR CUENTA</Btn>
                   )}
 
+                  {mesaSel.estado === 'ocupada' && pedidos.length > 0 && (
+                    <Btn color={C.surface} border={C.info} textColor={C.info} onClick={abrirCambioMesa}>🔁 CAMBIAR DE MESA</Btn>
+                  )}
+
                   {mesaSel.estado === 'cuenta' && pedidos.length > 0 && (<>
                     <Btn color={C.info} onClick={() => cambiarEstado('ocupada')}>
                       VOLVER A OCUPADA
@@ -926,6 +956,66 @@ export default function Mesas({ rol }) {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CAMBIAR DE MESA: elegir una mesa libre a la que pasar toda la cuenta */}
+      {cambioAbierto && mesaSel && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(10,15,20,0.6)', zIndex:85,
+          display:'flex', alignItems:'center', justifyContent:'center', padding:14 }}
+          onClick={e => { if (e.target === e.currentTarget && !cambiando) setCambioAbierto(false) }}>
+          <div style={{ background:C.surface, width:'100%', maxWidth:520, maxHeight:'92vh', display:'flex', flexDirection:'column',
+            borderRadius:16, borderTop:`4px solid ${C.info}`, boxShadow:'0 24px 60px rgba(0,0,0,0.35)', overflow:'hidden' }}>
+            <div style={{ padding:'16px 18px 10px' }}>
+              <div style={{ color:C.text, fontWeight:800, fontSize:17 }}>🔁 Cambiar de mesa</div>
+              <div style={{ color:C.textMuted, fontSize:12, marginTop:3 }}>
+                Se pasa toda la cuenta de la mesa {mesaSel.numero} ({pedidos.length} producto(s), con su estado en cocina). Elige una mesa libre.
+              </div>
+            </div>
+
+            <div style={{ padding:'4px 18px 10px', overflowY:'auto', flex:1, minHeight:0 }}>
+              {ZONAS.map(zona => (
+                <div key={zona.nombre} style={{ marginBottom:12 }}>
+                  <div style={{ fontSize:10, fontWeight:800, letterSpacing:2, color:C.textMuted, marginBottom:6 }}>{zona.nombre}</div>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(78px, 1fr))', gap:8 }}>
+                    {zona.mesas.filter(n => n !== mesaSel.numero).map(n => {
+                      const m = getMesa(n)
+                      const libre = m.estado === 'libre'
+                      const elegida = destinoNum === n
+                      return (
+                        <button key={n} disabled={!libre || cambiando} onClick={() => setDestinoNum(elegida ? null : n)}
+                          style={{ padding:'9px 4px', borderRadius:10, fontFamily:'inherit', textAlign:'center',
+                            cursor: libre ? 'pointer' : 'not-allowed', opacity: libre ? 1 : 0.5,
+                            background: elegida ? C.success : libre ? C.successBg : C.bgAlt,
+                            color: elegida ? '#fff' : libre ? C.success : C.textMuted,
+                            border:`1.5px solid ${elegida ? C.success : libre ? C.success : C.border}` }}>
+                          <div style={{ fontWeight:800, fontSize:15 }}>{n}</div>
+                          <div style={{ fontSize:9, fontWeight:800, letterSpacing:1 }}>{libre ? 'LIBRE' : 'OCUPADA'}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {errorCambio && (
+              <div style={{ margin:'0 18px 8px', background:C.dangerBg, color:C.danger, borderRadius:8, padding:'8px 10px', fontSize:12, fontWeight:700 }}>
+                {errorCambio}
+              </div>
+            )}
+            <div style={{ display:'flex', gap:8, padding:'10px 18px 16px', borderTop:`1px solid ${C.border}` }}>
+              <button onClick={() => setCambioAbierto(false)} disabled={cambiando}
+                style={{ flex:1, padding:'12px 0', borderRadius:10, border:`1px solid ${C.border}`, background:'transparent',
+                  color:C.textMuted, fontWeight:700, fontSize:12, cursor:'pointer' }}>CANCELAR</button>
+              <button onClick={confirmarCambioMesa} disabled={destinoNum === null || cambiando}
+                style={{ flex:2, padding:'12px 0', borderRadius:10, border:'none', fontWeight:800, fontSize:12, letterSpacing:1,
+                  background: destinoNum === null ? C.border : C.info, color: destinoNum === null ? C.textMuted : '#fff',
+                  cursor: destinoNum === null || cambiando ? 'not-allowed' : 'pointer' }}>
+                {cambiando ? 'PASANDO LA CUENTA…' : destinoNum === null ? 'ELIGE UNA MESA' : `PASAR A LA MESA ${destinoNum}`}
+              </button>
             </div>
           </div>
         </div>

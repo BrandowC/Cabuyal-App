@@ -23,6 +23,7 @@ const api = {
   // Mesas
   getMesas: () => request('/mesas'),
   updateMesa: ({ id, estado, mesero }) => request(`/mesas/${id}`, { method: 'PATCH', body: JSON.stringify({ estado, mesero }) }),
+  cambiarMesa: (mesaId, destinoId) => request(`/mesas/${mesaId}/cambiar`, { method: 'POST', body: JSON.stringify({ destinoId }) }),
   updateMesaLayout: (id, data) => request(`/mesas/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Pedidos

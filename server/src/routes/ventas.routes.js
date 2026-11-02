@@ -20,12 +20,18 @@ router.get('/', async (req, res) => {
     },
     orderBy: { fecha: 'desc' },
   })
-  res.json(ventas.map((v) => ({
-    id: v.id, mesa: v.mesa.numero, total: v.total, subtotal: v.subtotal, propina: v.propina,
-    metodoPago: v.metodoPago, mesero: v.mesero, fecha: v.fecha,
-    abiertaEn: v.pedidos.length ? new Date(Math.min(...v.pedidos.map((p) => p.fecha.getTime()))) : null,
-    items: v.pedidos.length,
-  })))
+  const cambios = await prisma.cambioMesa.findMany({ where: { fecha }, orderBy: { fecha: 'asc' } })
+
+  res.json(ventas.map((v) => {
+    const abiertaEn = v.pedidos.length ? new Date(Math.min(...v.pedidos.map((p) => p.fecha.getTime()))) : null
+    // Si la cuenta llegó a esta mesa por un cambio de mesa, se indica de cuál venía (los productos conservan su hora original)
+    const cambio = cambios.filter((c) => c.mesaDestino === v.mesa.numero && c.fecha <= v.fecha && (!abiertaEn || c.fecha >= abiertaEn)).pop()
+    return {
+      id: v.id, mesa: v.mesa.numero, total: v.total, subtotal: v.subtotal, propina: v.propina,
+      metodoPago: v.metodoPago, mesero: v.mesero, fecha: v.fecha, abiertaEn,
+      items: v.pedidos.length, vieneDeMesa: cambio ? cambio.mesaOrigen : null,
+    }
+  }))
 })
 
 router.get('/:id/recibo', async (req, res) => {

@@ -4,6 +4,7 @@ const { prisma } = require('../db')
 const { requireAuth, requireRole } = require('../auth/middleware')
 const { validateBody } = require('../validate')
 const { emitir } = require('../realtime')
+const { validarCambioMesa, ReglaDeMesa } = require('../services/cambioMesa')
 
 const router = Router()
 
@@ -43,6 +44,44 @@ router.patch('/:id', requireRole('admin', 'empleado', 'caja'), validateBody(esta
   await prisma.mesa.update({ where: { id }, data: { estado, mesero: estado === 'libre' ? '' : mesero } })
   emitir('mesas:cambio', { mesaId: id })
   res.json({ ok: true })
+})
+
+// Pasa toda la cuenta abierta de una mesa a otra mesa libre (el grupo se cambió de sitio).
+// Todo ocurre en una transacción: o se mueve completo o no se mueve nada.
+const cambioSchema = z.object({ destinoId: z.number().int().positive() })
+
+router.post('/:id/cambiar', requireRole('admin', 'empleado', 'caja'), validateBody(cambioSchema), async (req, res, next) => {
+  const origenId = Number(req.params.id)
+  const { destinoId } = req.body
+  try {
+    const resultado = await prisma.$transaction(async (tx) => {
+      const origen = await tx.mesa.findUnique({ where: { id: origenId } })
+      const destino = await tx.mesa.findUnique({ where: { id: destinoId } })
+      const abiertos = (mesaId) => tx.pedido.count({ where: { mesaId, estado: { not: 'cerrado' } } })
+      const productosOrigen = origen ? await abiertos(origenId) : 0
+      const productosDestino = destino ? await abiertos(destinoId) : 0
+
+      const problema = validarCambioMesa({ origen, destino, productosOrigen, productosDestino })
+      if (problema) throw new ReglaDeMesa(problema)
+
+      // Los productos conservan su estado en cocina, notas y hora; solo cambian de mesa
+      await tx.pedido.updateMany({ where: { mesaId: origenId, estado: { not: 'cerrado' } }, data: { mesaId: destinoId } })
+      await tx.mesa.update({ where: { id: destinoId }, data: { estado: 'ocupada', mesero: origen.mesero } })
+      await tx.mesa.update({ where: { id: origenId }, data: { estado: 'libre', mesero: '' } })
+      await tx.cambioMesa.create({
+        data: { mesaOrigen: origen.numero, mesaDestino: destino.numero, usuario: req.user.nombre, productos: productosOrigen },
+      })
+      return { origen: origen.numero, destino: destino.numero, productos: productosOrigen }
+    })
+
+    // La cocina y las pantallas de mesas se actualizan solas con estos avisos
+    emitir('mesas:cambio', { mesaId: origenId })
+    emitir('mesas:cambio', { mesaId: destinoId })
+    res.json({ ok: true, ...resultado })
+  } catch (err) {
+    if (err instanceof ReglaDeMesa) return res.status(400).json({ error: err.message })
+    next(err)
+  }
 })
 
 const layoutSchema = z.object({
