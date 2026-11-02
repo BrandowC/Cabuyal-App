@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Plus, X, KeyRound } from 'lucide-react'
+import { Plus, X, KeyRound, Trash2 } from 'lucide-react'
 import api from '../lib/api'
+import { useAuth } from '../auth/AuthContext'
 import { C } from '../theme'
 
 const ROLES = ['admin', 'caja', 'empleado']
 const EMPTY = { nombre: '', usuario: '', password: '', rol: 'empleado' }
 
 export default function Usuarios() {
+  const { user: yo } = useAuth()
   const [usuarios, setUsuarios] = useState([])
+  const [eliminar, setEliminar] = useState(null)
+  const [eliminando, setEliminando] = useState(false)
+  const [errorLista, setErrorLista] = useState('')
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
@@ -32,7 +37,27 @@ export default function Usuarios() {
   }
 
   const toggleActivo = async (u) => {
-    await api.updateUsuario({ id: u.id, activo: !u.activo })
+    setErrorLista('')
+    try {
+      await api.updateUsuario({ id: u.id, activo: !u.activo })
+    } catch (err) {
+      setErrorLista(err.message)
+    }
+    cargar()
+  }
+
+  // Elimina la cuenta; las ventas y registros que hizo se conservan con su nombre
+  const confirmarEliminar = async () => {
+    setEliminando(true); setErrorLista('')
+    try {
+      await api.deleteUsuario(eliminar.id)
+      setEliminar(null)
+    } catch (err) {
+      setErrorLista(err.message)
+      setEliminar(null)
+    } finally {
+      setEliminando(false)
+    }
     cargar()
   }
 
@@ -55,6 +80,11 @@ export default function Usuarios() {
           <Plus size={15}/> NUEVO USUARIO
         </button>
       </div>
+
+      {errorLista && (
+        <div style={{ background:C.dangerBg, border:`1px solid ${C.danger}55`, borderRadius:8, padding:'9px 12px',
+          color:C.danger, fontSize:13, fontWeight:600, marginBottom:12 }}>{errorLista}</div>
+      )}
 
       <div style={{ background:C.surface, borderRadius:10, overflowX:'auto', border:`1px solid ${C.border}` }}>
         <table style={{ width:'100%', minWidth:520, borderCollapse:'collapse', fontSize:13 }}>
@@ -90,6 +120,13 @@ export default function Usuarios() {
                     style={{ background:C.infoBg, border:'none', borderRadius:6, padding:'5px 10px',
                       color:C.info, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, fontSize:11, fontWeight:700 }}>
                     <KeyRound size={12}/> Contraseña
+                  </button>
+                  <button onClick={() => { setErrorLista(''); setEliminar(u) }} disabled={u.id === yo?.id}
+                    title={u.id === yo?.id ? 'No puedes eliminar tu propio usuario' : 'Eliminar usuario'}
+                    style={{ marginLeft:6, background:u.id === yo?.id ? C.bgAlt : C.dangerBg, border:'none', borderRadius:6, padding:'5px 10px',
+                      color:u.id === yo?.id ? C.textFaint : C.danger, cursor:u.id === yo?.id ? 'not-allowed' : 'pointer',
+                      display:'inline-flex', alignItems:'center', gap:6, fontSize:11, fontWeight:700 }}>
+                    <Trash2 size={12}/> Eliminar
                   </button>
                 </td>
               </tr>
@@ -149,6 +186,39 @@ export default function Usuarios() {
                 style={{ flex:1, padding:'10px 0', borderRadius:8, border:'none',
                   background:C.gold, color:C.header, fontWeight:800, cursor:'pointer' }}>
                 CREAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal eliminar usuario */}
+      {eliminar && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(35,29,24,0.55)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}
+          onClick={e => { if (e.target === e.currentTarget && !eliminando) setEliminar(null) }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.danger}`, borderRadius:12,
+            width:'100%', maxWidth:400, margin:16, padding:20 }}>
+            <div style={{ color:C.danger, fontWeight:800, marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+              <Trash2 size={16}/> ¿Eliminar a {eliminar.nombre}?
+            </div>
+            <div style={{ color:C.textMuted, fontSize:13, lineHeight:1.5, marginBottom:6 }}>
+              La cuenta <b style={{ color:C.text }}>{eliminar.usuario}</b> se borra para siempre y ya no podrá entrar.
+            </div>
+            <div style={{ color:C.textMuted, fontSize:13, lineHeight:1.5, marginBottom:14 }}>
+              Sus ventas, domicilios y demás registros <b style={{ color:C.text }}>se conservan</b> con su nombre.
+              Si solo quieres que no entre por un tiempo, mejor déjalo como inactivo.
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setEliminar(null)} disabled={eliminando}
+                style={{ flex:1, padding:'10px 0', borderRadius:8, border:`1px solid ${C.border}`,
+                  background:'transparent', color:C.textMuted, cursor:'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarEliminar} disabled={eliminando}
+                style={{ flex:1, padding:'10px 0', borderRadius:8, border:'none', background:C.danger, color:'#fff',
+                  fontWeight:800, cursor:eliminando ? 'wait' : 'pointer' }}>
+                {eliminando ? 'ELIMINANDO…' : 'SÍ, ELIMINAR'}
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ const cookieParser = require('cookie-parser')
 const cron = require('node-cron')
 
 const { initRealtime } = require('./realtime')
+const { exigirUsuarioActivo } = require('./auth/sesionActiva')
 const { ejecutarRetencion } = require('./services/retention')
 
 const authRoutes = require('./routes/auth.routes')
@@ -44,6 +45,9 @@ app.use(express.json())
 app.use(cookieParser())
 
 app.get('/api/health', (req, res) => res.json({ ok: true }))
+
+// Si desactivan o eliminan a un usuario, su sesión deja de servir de inmediato
+app.use('/api', exigirUsuarioActivo)
 
 app.use('/api/auth', authRoutes)
 app.use('/api/mesas', mesasRoutes)

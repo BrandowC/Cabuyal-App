@@ -64,6 +64,7 @@ const api = {
   getUsuarios: () => request('/usuarios'),
   addUsuario: (data) => request('/usuarios', { method: 'POST', body: JSON.stringify(data) }),
   updateUsuario: ({ id, ...data }) => request(`/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteUsuario: (id) => request(`/usuarios/${id}`, { method: 'DELETE' }),
 
   // Catálogo público (sin login)
   getMenuPublico: () => request('/publico/menu'),
