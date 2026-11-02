@@ -9,7 +9,7 @@ const router = Router()
 
 router.use(requireAuth)
 
-router.get('/ganancias', requireRole('admin', 'caja'), async (req, res) => {
+router.get('/ganancias', requireRole('admin'), async (req, res) => {
   const fecha = rangoFecha(req.query)
 
   const [ventasRaw, domicilios] = await Promise.all([
@@ -25,7 +25,7 @@ router.get('/ganancias', requireRole('admin', 'caja'), async (req, res) => {
   res.send(Buffer.from(buffer))
 })
 
-router.get('/ventas-resumen', requireRole('admin', 'caja'), async (req, res) => {
+router.get('/ventas-resumen', requireRole('admin'), async (req, res) => {
   const fecha = rangoFecha(req.query)
   const [ventas, pedidos, domicilios] = await Promise.all([
     prisma.venta.findMany({ where: { fecha }, select: { mesero: true, total: true, propina: true, fecha: true } }),

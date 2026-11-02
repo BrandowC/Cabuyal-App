@@ -23,7 +23,7 @@ const NAV = [
   { id: 'menu',         label: 'Menú',         icon: UtensilsCrossed, roles: ['admin'] },
   { id: 'menu-dia',     label: 'Menú del día', icon: CalendarDays,    roles: ['admin', 'caja'] },
   { id: 'historial',    label: 'Historial',    icon: History,         roles: ['admin', 'caja'] },
-  { id: 'reportes',     label: 'Reportes',     icon: PieChart,        roles: ['admin', 'caja'] },
+  { id: 'reportes',     label: 'Reportes',     icon: PieChart,        roles: ['admin'] },
   { id: 'usuarios',     label: 'Usuarios',    icon: Users,           roles: ['admin'] },
 ]
 
@@ -65,6 +65,12 @@ function AppShell() {
         .cabuyal-admin-topbar { display:none; }
         .cabuyal-admin-overlay { display:none; }
         .cabuyal-admin-sidebar { width:220px; flex-shrink:0; position:relative; }
+        /* En pantallas bajas el logo se encoge para que quepan el menú y "Cerrar sesión" */
+        @media (max-height: 860px) {
+          .cabuyal-admin-logo-wrap { padding: 14px 16px 12px !important; }
+          .cabuyal-admin-logo { width: 84px !important; height: 84px !important; margin-bottom: 8px !important; }
+          .cabuyal-admin-logo-wrap svg { display: none; }
+        }
         @media (max-width: 860px) {
           .cabuyal-admin-shell { flex-direction:column; height:100vh; width:100vw; }
           .cabuyal-admin-topbar { display:flex; }
@@ -123,8 +129,9 @@ function AppShell() {
 
         <div style={{ height: 3, background: `linear-gradient(90deg, transparent, ${C.gold}, transparent)` }}/>
 
-        <div style={{
+        <div className="cabuyal-admin-logo-wrap" style={{
           padding: '28px 16px 22px',
+          flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -137,7 +144,7 @@ function AppShell() {
             pointerEvents: 'none',
           }}/>
 
-          <div style={{
+          <div className="cabuyal-admin-logo" style={{
             width: 138, height: 138,
             borderRadius: '38% 62% 55% 45% / 45% 45% 55% 55%',
             border: `1.5px solid ${C.gold}88`,
@@ -194,7 +201,7 @@ function AppShell() {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {nav.map(({ id, label, icon: Icon }) => {
             const active = pagina === id
             return (
@@ -227,8 +234,9 @@ function AppShell() {
           })}
         </nav>
 
-        {/* Footer */}
+        {/* Footer: siempre visible, aunque el menú sea largo (el menú es lo que se desplaza) */}
         <div style={{
+          flexShrink: 0,
           padding: '12px 10px 16px',
           borderTop: `1px solid ${C.gold}22`,
           display: 'flex', flexDirection: 'column', gap: 6,
@@ -273,7 +281,7 @@ function AppShell() {
             <ProtectedRoute roles={['admin', 'caja']}><Historial /></ProtectedRoute>
           } />
           <Route path="reportes" element={
-            <ProtectedRoute roles={['admin', 'caja']}><Reportes /></ProtectedRoute>
+            <ProtectedRoute roles={['admin']}><Reportes /></ProtectedRoute>
           } />
           <Route path="domicilios" element={
             <ProtectedRoute roles={['admin', 'caja']}><Domicilios /></ProtectedRoute>
